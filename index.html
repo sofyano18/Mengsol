@@ -659,7 +659,7 @@
 
 <div class="container">
     <header>
-        <h1>Dental Maintenance</h1>
+        <h1>Dental Maintenance & Asset Manager</h1>
         <p>Sistem Pengelolaan Tugas Pemeliharaan & Inventaris Data Asset Klinik Gigi</p>
         <div class="header-author">Made by : dr. Tarjo sp.BU</div>
     </header>
@@ -693,7 +693,7 @@
 
         <div class="charts-grid">
             <div class="card">
-                <h2>Grafik</h2>
+                <h2>Grafik Status Tugas</h2>
                 <div class="chart-container"><canvas id="statusChart"></canvas></div>
             </div>
             <div class="card">
@@ -994,30 +994,84 @@
     </div>
 </div>
 
-<script>
-    // --- DATABASE MASTER LOCALSTORAGE ---
-    let kliniks = JSON.parse(localStorage.getItem('dentalKliniks')) || ["Klinik Pusat", "Klinik Cabang A", "Klinik Cabang B"];
-    let masterAlat = JSON.parse(localStorage.getItem('dentalMasterAlat')) || ["Dental Chair", "Autoclave", "X-Ray Dental", "Compressor", "Scaling Unit"];
-    let masterBrand = JSON.parse(localStorage.getItem('dentalMasterBrand')) || ["Belmont", "Osstem", "Anthos", "Woodpecker", "Sirona"];
-    let masterRooms = JSON.parse(localStorage.getItem('dentalMasterRooms')) || ["Poli Gigi 1", "Poli Gigi 2", "Ruang Sterilisasi", "Ruang Lab"];
-    let assets = JSON.parse(localStorage.getItem('dentalAssets')) || [];
-    let tasks = JSON.parse(localStorage.getItem('dentalTasks')) || [];
-    let historyLogs = JSON.parse(localStorage.getItem('dentalHistoryLogs')) || [];
-    let calibrations = JSON.parse(localStorage.getItem('dentalCalibrations')) || [];
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    let currentPage = 1;
+    // Konfigurasi milik user
+    const firebaseConfig = {
+      apiKey: "AIzaSyBZcU4a0j3LkDI-x8BoG7JU3aFEO77HiLM",
+      authDomain: "mengsol-project.firebaseapp.com",
+      databaseURL: "https://mengsol-project-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "mengsol-project",
+      storageBucket: "mengsol-project.firebasestorage.app",
+      messagingSenderId: "881482561541",
+      appId: "1:881482561541:web:6bed2bd7bcb9378403446c"
+    };
+
+    // Inisialisasi Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Variabel Global Data Aplikasi
+    window.kliniks = ["Klinik Pusat", "Klinik Cabang A", "Klinik Cabang B"];
+    window.masterAlat = ["Dental Chair", "Autoclave", "X-Ray Dental", "Compressor", "Scaling Unit"];
+    window.masterBrand = ["Belmont", "Osstem", "Anthos", "Woodpecker", "Sirona"];
+    window.masterRooms = ["Poli Gigi 1", "Poli Gigi 2", "Ruang Sterilisasi", "Ruang Lab"];
+    window.assets = [];
+    window.tasks = [];
+    window.historyLogs = [];
+    window.calibrations = [];
+
+    window.currentPage = 1;
     const rowsPerPage = 10;
 
     let statusChartInstance = null, priorityChartInstance = null, klinikChartInstance = null, alatCategoryChartInstance = null, assetChartInstance = null;
     let calReminderChartInstance = null, calKlinikUrgentChartInstance = null;
 
-    // --- SINKRONISASI OTOMATIS STATUS & KALENDER H-90 ---
+    // --- FUNGSIONALITAS SINCRONIZE DATA KE FIREBASE ---
+    function saveAllDataToFirebase() {
+        set(ref(db, 'dentalData'), {
+            kliniks: window.kliniks,
+            masterAlat: window.masterAlat,
+            masterBrand: window.masterBrand,
+            masterRooms: window.masterRooms,
+            assets: window.assets,
+            tasks: window.tasks,
+            historyLogs: window.historyLogs,
+            calibrations: window.calibrations
+        }).catch(err => console.error("Gagal menyimpan ke Firebase:", err));
+    }
+
+    // Mendengarkan perubahan data secara realtime dari database Firebase
+    onValue(ref(db, 'dentalData'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            if (data.kliniks) window.kliniks = data.kliniks;
+            if (data.masterAlat) window.masterAlat = data.masterAlat;
+            if (data.masterBrand) window.masterBrand = data.masterBrand;
+            if (data.masterRooms) window.masterRooms = data.masterRooms;
+            window.assets = data.assets || [];
+            window.tasks = data.tasks || [];
+            window.historyLogs = data.historyLogs || [];
+            window.calibrations = data.calibrations || [];
+        }
+        
+        // Refresh Tampilan UI setelah data berhasil ditarik dari Firebase
+        runAutoCalibrationScheduler();
+        populateDropdowns();
+        renderTasks();
+        renderAssets();
+        renderLogs();
+    });
+
+    // --- SINKRONISASI OTOMATIS JADWAL KALENDER H-90 ---
     function runAutoCalibrationScheduler() {
         const today = new Date();
         today.setHours(0,0,0,0);
         let updatedAny = false;
 
-        calibrations.forEach((cal) => {
+        window.calibrations.forEach((cal) => {
             if (cal.status === 'Selesai' && cal.nextDate) {
                 const nextDateObj = new Date(cal.nextDate);
                 nextDateObj.setHours(0,0,0,0);
@@ -1028,13 +1082,13 @@
                 if (diffDays <= 90) {
                     cal.status = 'Dijadwalkan';
                     updatedAny = true;
-                    addLog(`[AUTO-SCHEDULER] Alat [${cal.assetName}] di ${cal.klinik} otomatis kembali ke status "Dijadwalkan" karena memasuki H-${diffDays} hari menjelang jatuh tempo kalibrasi.`);
+                    addLogSilently(`[AUTO-SCHEDULER] Alat [${cal.assetName}] di ${cal.klinik} otomatis kembali ke status "Dijadwalkan" karena memasuki H-${diffDays} hari menjelang jatuh tempo kalibrasi.`);
                 }
             }
         });
 
         if (updatedAny) {
-            localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
+            saveAllDataToFirebase();
         }
     }
 
@@ -1061,7 +1115,7 @@
         if(calKlinik) calKlinik.innerHTML = '';
         if(viewKlinikCal) viewKlinikCal.innerHTML = '<option value="SEMUA">-- Tampilkan Semua Klinik --</option>';
 
-        kliniks.forEach(k => {
+        window.kliniks.forEach(k => {
             viewKlinik.innerHTML += `<option value="${k}">${k}</option>`;
             assetKlinik.innerHTML += `<option value="${k}">${k}</option>`;
             if(taskKlinik) taskKlinik.innerHTML += `<option value="${k}">${k}</option>`;
@@ -1071,52 +1125,53 @@
 
         if (alatSelect) {
             alatSelect.innerHTML = '';
-            masterAlat.forEach(alat => { alatSelect.innerHTML += `<option value="${alat}">${alat}</option>`; });
+            window.masterAlat.forEach(alat => { alatSelect.innerHTML += `<option value="${alat}">${alat}</option>`; });
         }
 
-        if(kliniks.includes(currentSelectedView)) viewKlinik.value = currentSelectedView;
-        if(viewKlinikCal && (currentSelectedCalView === "SEMUA" || kliniks.includes(currentSelectedCalView))) viewKlinikCal.value = currentSelectedCalView;
-        if(kliniks.includes(currentSelectedInput)) assetKlinik.value = currentSelectedInput;
-        if(taskKlinik && kliniks.includes(currentSelectedTask)) taskKlinik.value = currentSelectedTask;
-        if(calKlinik && kliniks.includes(currentSelectedCalKlinik)) calKlinik.value = currentSelectedCalKlinik;
-        if(alatSelect && masterAlat.includes(currentSelectedAlat)) alatSelect.value = currentSelectedAlat;
+        if(window.kliniks.includes(currentSelectedView)) viewKlinik.value = currentSelectedView;
+        if(viewKlinikCal && (currentSelectedCalView === "SEMUA" || window.kliniks.includes(currentSelectedCalView))) viewKlinikCal.value = currentSelectedCalView;
+        if(window.kliniks.includes(currentSelectedInput)) assetKlinik.value = currentSelectedInput;
+        if(taskKlinik && window.kliniks.includes(currentSelectedTask)) taskKlinik.value = currentSelectedTask;
+        if(calKlinik && window.kliniks.includes(currentSelectedCalKlinik)) calKlinik.value = currentSelectedCalKlinik;
+        if(alatSelect && window.masterAlat.includes(currentSelectedAlat)) alatSelect.value = currentSelectedAlat;
 
         masterAssetList.innerHTML = '';
-        masterAlat.forEach(alat => { masterAssetList.innerHTML += `<option value="${alat}"></option>`; });
+        window.masterAlat.forEach(alat => { masterAssetList.innerHTML += `<option value="${alat}"></option>`; });
 
         masterBrandList.innerHTML = '';
-        masterBrand.forEach(brand => { masterBrandList.innerHTML += `<option value="${brand}"></option>`; });
+        window.masterBrand.forEach(brand => { masterBrandList.innerHTML += `<option value="${brand}"></option>`; });
 
         if (masterRoomList) {
             masterRoomList.innerHTML = '';
-            masterRooms.forEach(room => { masterRoomList.innerHTML += `<option value="${room}"></option>`; });
+            window.masterRooms.forEach(room => { masterRoomList.innerHTML += `<option value="${room}"></option>`; });
         }
-
-        localStorage.setItem('dentalKliniks', JSON.stringify(kliniks));
-        localStorage.setItem('dentalMasterAlat', JSON.stringify(masterAlat));
-        localStorage.setItem('dentalMasterBrand', JSON.stringify(masterBrand));
-        localStorage.setItem('dentalMasterRooms', JSON.stringify(masterRooms));
     }
 
     // --- LOG HISTORY FUNCTIONS ---
     function addLog(message) {
         const now = new Date();
         const timeString = now.toLocaleDateString('id-ID') + ' ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        historyLogs.unshift({ timestamp: timeString, text: message });
-        if (historyLogs.length > 100) historyLogs.pop();
-        localStorage.setItem('dentalHistoryLogs', JSON.stringify(historyLogs));
-        renderLogs();
+        window.historyLogs.unshift({ timestamp: timeString, text: message });
+        if (window.historyLogs.length > 100) window.historyLogs.pop();
+        saveAllDataToFirebase();
+    }
+
+    function addLogSilently(message) {
+        const now = new Date();
+        const timeString = now.toLocaleDateString('id-ID') + ' ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        window.historyLogs.unshift({ timestamp: timeString, text: message });
+        if (window.historyLogs.length > 100) window.historyLogs.pop();
     }
 
     function renderLogs() {
         const container = document.getElementById('logContainer');
         if (!container) return;
         container.innerHTML = '';
-        if (historyLogs.length === 0) {
+        if (window.historyLogs.length === 0) {
             container.innerHTML = '<div style="color: #64748b; font-style: italic; text-align: center; padding: 10px;">Belum ada riwayat perubahan data.</div>';
             return;
         }
-        historyLogs.forEach(log => {
+        window.historyLogs.forEach(log => {
             container.innerHTML += `
                 <div class="log-item">
                     <span class="log-timestamp">[${log.timestamp}]</span>
@@ -1126,29 +1181,27 @@
         });
     }
 
-    function clearLogs() {
+    window.clearLogs = function() {
         const passwordInput = prompt("Masukkan password keamanan untuk membersihkan seluruh log history:");
         if (passwordInput === null) return; 
         if (passwordInput === "000000") {
             if(confirm("Apakah Anda benar-benar yakin ingin menghapus seluruh log secara permanen?")) {
-                historyLogs = [];
-                localStorage.setItem('dentalHistoryLogs', JSON.stringify(historyLogs));
-                renderLogs();
-                alert("Log riwayat perubahan berhasil dibersihkan.");
+                window.historyLogs = [];
+                saveAllDataToFirebase();
             }
         } else {
             alert("Password Salah! Akses untuk menghapus log ditolak.");
         }
     }
 
-    function clearDateFilter() {
+    window.clearDateFilter = function() {
         document.getElementById('filterStartDate').value = '';
         document.getElementById('filterEndDate').value = '';
-        resetToPageOneAndRender();
+        window.resetToPageOneAndRender();
     }
 
-    function resetToPageOneAndRender() {
-        currentPage = 1;
+    window.resetToPageOneAndRender = function() {
+        window.currentPage = 1;
         renderTasks();
     }
 
@@ -1164,7 +1217,7 @@
         let startFilter = startDateVal ? new Date(startDateVal).setHours(0,0,0,0) : null;
         let endFilter = endDateVal ? new Date(endDateVal).setHours(23,59,59,999) : null;
 
-        let filteredTasks = tasks.map((task, originalIndex) => ({ ...task, originalIndex }));
+        let filteredTasks = window.tasks.map((task, originalIndex) => ({ ...task, originalIndex }));
         
         if (startFilter || endFilter) {
             filteredTasks = filteredTasks.filter(task => {
@@ -1189,10 +1242,10 @@
         }
 
         const totalPages = Math.ceil(totalFiltered / rowsPerPage);
-        if (currentPage > totalPages) currentPage = totalPages;
-        if (currentPage < 1) currentPage = 1;
+        if (window.currentPage > totalPages) window.currentPage = totalPages;
+        if (window.currentPage < 1) window.currentPage = 1;
 
-        const startIndex = (currentPage - 1) * rowsPerPage;
+        const startIndex = (window.currentPage - 1) * rowsPerPage;
         const endIndex = Math.min(startIndex + rowsPerPage, totalFiltered);
         const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
 
@@ -1225,7 +1278,7 @@
                 <td><strong>${formattedDue}</strong></td>
                 <td><span class="badge badge-${task.prioritas}">${task.prioritas === 'high' ? 'Tinggi' : task.prioritas === 'medium' ? 'Sedang' : 'Rendah'}</span></td>
                 <td>
-                    <select class="status-select-inline ${selectColorClass}" onchange="changeTaskStatus(${task.originalIndex}, this.value)">
+                    <select class="status-select-inline ${selectColorClass}" data-id="${task.originalIndex}">
                         <option value="Pending" ${task.status === 'Pending' ? 'selected' : ''}>Pending</option>
                         <option value="On Progress" ${task.status === 'On Progress' ? 'selected' : ''}>On Progress</option>
                         <option value="Done" ${task.status === 'Done' ? 'selected' : ''}>Done</option>
@@ -1236,6 +1289,12 @@
                     <button class="btn-action btn-danger" onclick="deleteTask(${task.originalIndex})">Hapus</button>
                 </td>
             `;
+            
+            // Event listener inline select statuse
+            tr.querySelector('.status-select-inline').addEventListener('change', function() {
+                changeTaskStatus(this.getAttribute('data-id'), this.value);
+            });
+            
             tableBody.appendChild(tr);
         });
 
@@ -1251,33 +1310,31 @@
         if(totalPages <= 1) return;
 
         const prevBtn = document.createElement('button');
-        prevBtn.className = 'pagination-btn'; prevBtn.textContent = '◀'; prevBtn.disabled = currentPage === 1;
-        prevBtn.onclick = () => { currentPage--; renderTasks(); };
+        prevBtn.className = 'pagination-btn'; prevBtn.textContent = '◀'; prevBtn.disabled = window.currentPage === 1;
+        prevBtn.onclick = () => { window.currentPage--; renderTasks(); };
         btnWrapper.appendChild(prevBtn);
 
         for (let i = 1; i <= totalPages; i++) {
             const numBtn = document.createElement('button');
-            numBtn.className = `pagination-btn ${i === currentPage ? 'active' : ''}`; numBtn.textContent = i;
-            numBtn.onclick = () => { currentPage = i; renderTasks(); };
+            numBtn.className = `pagination-btn ${i === window.currentPage ? 'active' : ''}`; numBtn.textContent = i;
+            numBtn.onclick = () => { window.currentPage = i; renderTasks(); };
             btnWrapper.appendChild(numBtn);
         }
 
         const nextBtn = document.createElement('button');
-        nextBtn.className = 'pagination-btn'; nextBtn.textContent = '▶'; nextBtn.disabled = currentPage === totalPages;
-        nextBtn.onclick = () => { currentPage++; renderTasks(); };
+        nextBtn.className = 'pagination-btn'; nextBtn.textContent = '▶'; nextBtn.disabled = window.currentPage === totalPages;
+        nextBtn.onclick = () => { window.currentPage++; renderTasks(); };
         btnWrapper.appendChild(nextBtn);
     }
 
     function changeTaskStatus(originalIndex, newStatus) {
-        const oldStatus = tasks[originalIndex].status;
-        tasks[originalIndex].status = newStatus;
-        localStorage.setItem('dentalTasks', JSON.stringify(tasks));
-        addLog(`Status tugas untuk alat [${tasks[originalIndex].alat} - ${tasks[originalIndex].tugas}] diubah dari "${oldStatus}" menjadi "${newStatus}".`);
-        renderTasks();
+        const oldStatus = window.tasks[originalIndex].status;
+        window.tasks[originalIndex].status = newStatus;
+        addLog(`Status tugas untuk alat [${window.tasks[originalIndex].alat} - ${window.tasks[originalIndex].tugas}] diubah dari "${oldStatus}" menjadi "${newStatus}".`);
     }
 
-    function enterTaskEditMode(originalIndex) {
-        const task = tasks[originalIndex];
+    window.enterTaskEditMode = function(originalIndex) {
+        const task = window.tasks[originalIndex];
         document.getElementById('formTaskTitle').textContent = "Edit Data Tugas";
         document.getElementById('editTaskIndex').value = originalIndex;
         document.getElementById('taskKlinik').value = task.klinik;
@@ -1293,7 +1350,7 @@
         document.getElementById('formTaskTitle').scrollIntoView({ behavior: 'smooth' });
     }
 
-    function cancelTaskEditMode() {
+    window.cancelTaskEditMode = function() {
         document.getElementById('maintenanceForm').reset();
         document.getElementById('formTaskTitle').textContent = "Tambah Tugas Baru";
         document.getElementById('editTaskIndex').value = "";
@@ -1307,7 +1364,7 @@
     document.getElementById('maintenanceForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const editIndexStr = document.getElementById('editTaskIndex').value;
-        const currentStatus = editIndexStr !== "" ? tasks[parseInt(editIndexStr)].status : 'Pending';
+        const currentStatus = editIndexStr !== "" ? window.tasks[parseInt(editIndexStr)].status : 'Pending';
 
         const taskData = {
             klinik: document.getElementById('taskKlinik').value,
@@ -1321,84 +1378,74 @@
 
         if (editIndexStr !== "") { 
             const idx = parseInt(editIndexStr);
-            tasks[idx] = taskData; 
+            window.tasks[idx] = taskData; 
             addLog(`Tugas terubah: [${taskData.alat}] - "${taskData.tugas}" di ${taskData.klinik}.`);
         } else { 
-            tasks.push(taskData); 
+            window.tasks.push(taskData); 
             addLog(`Tugas baru ditambahkan: [${taskData.alat}] - "${taskData.tugas}" di ${taskData.klinik} (Status: Pending).`);
         }
-
-        localStorage.setItem('dentalTasks', JSON.stringify(tasks));
-        cancelTaskEditMode(); renderTasks(); populateDropdowns();
+        window.cancelTaskEditMode();
     });
 
-    function deleteTask(originalIndex) { 
+    window.deleteTask = function(originalIndex) { 
         if(confirm("Hapus histori tugas ini secara permanen?")) { 
-            const deleted = tasks[originalIndex];
-            tasks.splice(originalIndex, 1); 
-            localStorage.setItem('dentalTasks', JSON.stringify(tasks)); 
+            const deleted = window.tasks[originalIndex];
+            window.tasks.splice(originalIndex, 1); 
             addLog(`Tugas dihapus permanen: [${deleted.alat}] - "${deleted.tugas}" dari ${deleted.klinik}.`);
-            renderTasks(); 
         } 
     }
 
     // --- MASTER MANAGEMENT ---
-    function manageKlinik(action) {
+    window.manageKlinik = function(action) {
         const klinikAktif = document.getElementById('viewKlinik').value;
         if(action === 'add') {
             const namaBaru = prompt("Masukkan nama lokasi klinik baru:");
             if(namaBaru && namaBaru.trim() !== "") {
-                if(kliniks.includes(namaBaru.trim())) { alert("Klinik sudah terdaftar!"); return; }
-                kliniks.push(namaBaru.trim()); populateDropdowns();
-                document.getElementById('viewKlinik').value = namaBaru.trim();
-                renderAssets(); renderTasks(); if(document.getElementById('calibration-tab').classList.contains('active')) renderCalibrations();
+                if(window.kliniks.includes(namaBaru.trim())) { alert("Klinik sudah terdaftar!"); return; }
+                window.kliniks.push(namaBaru.trim());
+                saveAllDataToFirebase();
+                setTimeout(() => { document.getElementById('viewKlinik').value = namaBaru.trim(); }, 500);
             }
         } else if(action === 'edit') {
             if(!klinikAktif) return;
             const namaDiubah = prompt(`Ubah nama lokasi klinik menjadi:`, klinikAktif);
             if(namaDiubah && namaDiubah.trim() !== "" && namaDiubah.trim() !== klinikAktif) {
-                if(kliniks.includes(namaDiubah.trim())) { alert("Nama klinik sudah ada!"); return; }
-                const idx = kliniks.indexOf(klinikAktif);
+                if(window.kliniks.includes(namaDiubah.trim())) { alert("Nama klinik sudah ada!"); return; }
+                const idx = window.kliniks.indexOf(klinikAktif);
                 if(idx !== -1) {
-                    kliniks[idx] = namaDiubah.trim();
-                    assets.forEach(a => { if(a.klinik === klinikAktif) a.klinik = namaDiubah.trim(); });
-                    tasks.forEach(t => { if(t.klinik === klinikAktif) t.klinik = namaDiubah.trim(); });
-                    calibrations.forEach(c => { if(c.klinik === klinikAktif) c.klinik = namaDiubah.trim(); });
-                    localStorage.setItem('dentalAssets', JSON.stringify(assets));
-                    localStorage.setItem('dentalTasks', JSON.stringify(tasks));
-                    localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
-                    populateDropdowns(); document.getElementById('viewKlinik').value = namaDiubah.trim();
-                    renderAssets(); renderTasks(); if(document.getElementById('calibration-tab').classList.contains('active')) renderCalibrations();
+                    window.kliniks[idx] = namaDiubah.trim();
+                    window.assets.forEach(a => { if(a.klinik === klinikAktif) a.klinik = namaDiubah.trim(); });
+                    window.tasks.forEach(t => { if(t.klinik === klinikAktif) t.klinik = namaDiubah.trim(); });
+                    window.calibrations.forEach(c => { if(c.klinik === klinikAktif) c.klinik = namaDiubah.trim(); });
+                    saveAllDataToFirebase();
+                    setTimeout(() => { document.getElementById('viewKlinik').value = namaDiubah.trim(); }, 500);
                 }
             }
         } else if(action === 'delete') {
             if(!klinikAktif) return;
             if(confirm(`Hapus klinik "${klinikAktif}"?`)) {
-                kliniks = kliniks.filter(k => k !== klinikAktif);
-                assets.forEach(a => { if(a.klinik === klinikAktif) a.klinik = kliniks[0] || ""; });
-                tasks.forEach(t => { if(t.klinik === klinikAktif) t.klinik = kliniks[0] || ""; });
-                calibrations.forEach(c => { if(c.klinik === klinikAktif) c.klinik = kliniks[0] || ""; });
-                localStorage.setItem('dentalAssets', JSON.stringify(assets));
-                localStorage.setItem('dentalTasks', JSON.stringify(tasks));
-                localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
-                populateDropdowns(); renderAssets(); renderTasks(); if(document.getElementById('calibration-tab').classList.contains('active')) renderCalibrations();
+                window.kliniks = window.kliniks.filter(k => k !== klinikAktif);
+                window.assets.forEach(a => { if(a.klinik === klinikAktif) a.klinik = window.kliniks[0] || ""; });
+                window.tasks.forEach(t => { if(t.klinik === klinikAktif) t.klinik = window.kliniks[0] || ""; });
+                window.calibrations.forEach(c => { if(c.klinik === klinikAktif) c.klinik = window.kliniks[0] || ""; });
+                saveAllDataToFirebase();
             }
         }
     }
 
-    function manageMasterAlat() {
-        if (masterAlat.length === 0) {
+    window.manageMasterAlat = function() {
+        if (window.masterAlat.length === 0) {
             const baru = prompt("Master alat kosong. Masukkan nama alat baru:");
             if (baru && baru.trim() !== "") {
-                masterAlat.push(baru.trim());
-                populateDropdowns();
+                window.masterAlat.push(baru.trim());
+                saveAllDataToFirebase();
                 alert("Alat berhasil ditambahkan!");
             }
             return;
         }
 
         let listAlatText = "";
-        masterAlat.forEach((alat, index) => {
+        window.masterAlat.forEach((alat, index) => {
             listAlatText += `${index + 1}. ${alat}\n`;
         });
 
@@ -1407,50 +1454,39 @@
         if (opsi === "1") {
             const baru = prompt("Masukkan nama alat baru yang ingin ditambahkan:");
             if (baru && baru.trim() !== "") {
-                if (masterAlat.map(a => a.toLowerCase()).includes(baru.trim().toLowerCase())) {
+                if (window.masterAlat.map(a => a.toLowerCase()).includes(baru.trim().toLowerCase())) {
                     alert("Nama alat tersebut sudah terdaftar!");
                     return;
                 }
-                masterAlat.push(baru.trim());
-                populateDropdowns();
+                window.masterAlat.push(baru.trim());
                 addLog(`Master Alat Ditambahkan: "${baru.trim()}"`);
-                alert("Alat baru berhasil ditambahkan!");
             }
         } 
         else if (opsi === "2") {
             const nomorAlat = prompt(`PILIH NOMOR ALAT YANG INGIN DIUBAH:\n\n${listAlatText}\nMasukkan nomor alat:`);
             const idx = parseInt(nomorAlat) - 1;
             
-            if (isNaN(idx) || idx < 0 || idx >= masterAlat.length) {
+            if (isNaN(idx) || idx < 0 || idx >= window.masterAlat.length) {
                 alert("Nomor alat tidak valid!");
                 return;
             }
             
-            const namaLama = masterAlat[idx];
+            const namaLama = window.masterAlat[idx];
             const namaBaru = prompt(`Ubah nama alat "${namaLama}" menjadi:`, namaLama);
             
             if (namaBaru && namaBaru.trim() !== "" && namaBaru.trim() !== namaLama) {
-                if (masterAlat.map(a => a.toLowerCase()).includes(namaBaru.trim().toLowerCase()) && namaBaru.trim().toLowerCase() !== namaLama.toLowerCase()) {
+                if (window.masterAlat.map(a => a.toLowerCase()).includes(namaBaru.trim().toLowerCase()) && namaBaru.trim().toLowerCase() !== namaLama.toLowerCase()) {
                     alert("Nama alat baru sudah ada di daftar!");
                     return;
                 }
                 
                 const konfirmasi = confirm(`Apakah Anda yakin ingin mengubah "${namaLama}" menjadi "${namaBaru.trim()}" di seluruh sistem?`);
                 if (konfirmasi) {
-                    masterAlat[idx] = namaBaru.trim();
-                    assets.forEach(asset => { if (asset.name === namaLama) asset.name = namaBaru.trim(); });
-                    tasks.forEach(task => { if (task.alat === namaLama) task.alat = namaBaru.trim(); });
-                    calibrations.forEach(cal => { if (cal.assetName === namaLama) cal.assetName = namaBaru.trim(); });
-
-                    localStorage.setItem('dentalAssets', JSON.stringify(assets));
-                    localStorage.setItem('dentalTasks', JSON.stringify(tasks));
-                    localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
-                    
-                    populateDropdowns(); renderAssets(); renderTasks();
-                    if(document.getElementById('calibration-tab').classList.contains('active')) renderCalibrations();
-                    
+                    window.masterAlat[idx] = namaBaru.trim();
+                    window.assets.forEach(asset => { if (asset.name === namaLama) asset.name = namaBaru.trim(); });
+                    window.tasks.forEach(task => { if (task.alat === namaLama) task.alat = namaBaru.trim(); });
+                    window.calibrations.forEach(cal => { if (cal.assetName === namaLama) cal.assetName = namaBaru.trim(); });
                     addLog(`Master Alat Diubah: "${namaLama}" diganti menjadi "${namaBaru.trim()}"`);
-                    alert("Nama alat berhasil diperbarui!");
                 }
             }
         } 
@@ -1458,38 +1494,34 @@
             const nomorAlat = prompt(`PILIH NOMOR ALAT YANG INGIN DIHAPUS:\n\n${listAlatText}\nMasukkan nomor alat:`);
             const idx = parseInt(nomorAlat) - 1;
             
-            if (isNaN(idx) || idx < 0 || idx >= masterAlat.length) {
+            if (isNaN(idx) || idx < 0 || idx >= window.masterAlat.length) {
                 alert("Nomor alat tidak valid!");
                 return;
             }
             
-            const namaHapus = masterAlat[idx];
+            const namaHapus = window.masterAlat[idx];
             const konfirmasi = confirm(`Hapus "${namaHapus}" dari daftar pilihan master?\n(Catatan: Data asset yang sudah memakai nama ini tidak akan terhapus, hanya hilang dari pilihan datalist cepat)`);
             
             if (konfirmasi) {
-                masterAlat.splice(idx, 1);
-                populateDropdowns();
+                window.masterAlat.splice(idx, 1);
                 addLog(`Master Alat Dihapus: "${namaHapus}"`);
-                alert("Nama alat berhasil dihapus dari daftar rekomendasi!");
             }
         }
     }
 
-    /* --- PERBAIKAN FITUR: MANAJEMEN MASTER MERK ALAT (TAMBAH, EDIT, HAPUS) --- */
-    function manageMasterBrand() {
-        if (masterBrand.length === 0) {
+    window.manageMasterBrand = function() {
+        if (window.masterBrand.length === 0) {
             const baru = prompt("Master merk kosong. Masukkan nama merk baru:");
             if (baru && baru.trim() !== "") {
-                masterBrand.push(baru.trim());
-                populateDropdowns();
+                window.masterBrand.push(baru.trim());
+                saveAllDataToFirebase();
                 alert("Merk berhasil ditambahkan!");
             }
             return;
         }
 
-        // Membuat daftar teks list master merk yang tersedia saat ini
         let listBrandText = "";
-        masterBrand.forEach((brand, index) => {
+        window.masterBrand.forEach((brand, index) => {
             listBrandText += `${index + 1}. ${brand}\n`;
         });
 
@@ -1498,50 +1530,39 @@
         if (opsi === "1") {
             const baru = prompt("Masukkan nama merk baru yang ingin ditambahkan:");
             if (baru && baru.trim() !== "") {
-                if (masterBrand.map(b => b.toLowerCase()).includes(baru.trim().toLowerCase())) {
+                if (window.masterBrand.map(b => b.toLowerCase()).includes(baru.trim().toLowerCase())) {
                     alert("Nama merk tersebut sudah terdaftar!");
                     return;
                 }
-                masterBrand.push(baru.trim());
-                populateDropdowns();
+                window.masterBrand.push(baru.trim());
                 addLog(`Master Merk Ditambahkan: "${baru.trim()}"`);
-                alert("Merk baru berhasil ditambahkan!");
             }
         } 
         else if (opsi === "2") {
             const nomorBrand = prompt(`PILIH NOMOR MERK YANG INGIN DIUBAH:\n\n${listBrandText}\nMasukkan nomor merk:`);
             const idx = parseInt(nomorBrand) - 1;
             
-            if (isNaN(idx) || idx < 0 || idx >= masterBrand.length) {
+            if (isNaN(idx) || idx < 0 || idx >= window.masterBrand.length) {
                 alert("Nomor merk tidak valid!");
                 return;
             }
             
-            const namaLama = masterBrand[idx];
+            const namaLama = window.masterBrand[idx];
             const namaBaru = prompt(`Ubah nama merk "${namaLama}" menjadi:`, namaLama);
             
             if (namaBaru && namaBaru.trim() !== "" && namaBaru.trim() !== namaLama) {
-                if (masterBrand.map(b => b.toLowerCase()).includes(namaBaru.trim().toLowerCase()) && namaBaru.trim().toLowerCase() !== namaLama.toLowerCase()) {
+                if (window.masterBrand.map(b => b.toLowerCase()).includes(namaBaru.trim().toLowerCase()) && namaBaru.trim().toLowerCase() !== namaLama.toLowerCase()) {
                     alert("Nama merk baru sudah ada di daftar!");
                     return;
                 }
                 
                 const konfirmasi = confirm(`Apakah Anda yakin ingin mengubah merk "${namaLama}" menjadi "${namaBaru.trim()}" di seluruh data asset?`);
                 if (konfirmasi) {
-                    masterBrand[idx] = namaBaru.trim();
-                    
-                    // Otomatis update data relasional pada merk asset yang sudah tersimpan
-                    assets.forEach(asset => {
+                    window.masterBrand[idx] = namaBaru.trim();
+                    window.assets.forEach(asset => {
                         if (asset.brand === namaLama) asset.brand = namaBaru.trim();
                     });
-
-                    localStorage.setItem('dentalAssets', JSON.stringify(assets));
-                    
-                    populateDropdowns();
-                    renderAssets();
-                    
                     addLog(`Master Merk Diubah: "${namaLama}" diganti menjadi "${namaBaru.trim()}"`);
-                    alert("Nama merk berhasil diperbarui!");
                 }
             }
         } 
@@ -1549,24 +1570,22 @@
             const nomorBrand = prompt(`PILIH NOMOR MERK YANG INGIN DIHAPUS:\n\n${listBrandText}\nMasukkan nomor merk:`);
             const idx = parseInt(nomorBrand) - 1;
             
-            if (isNaN(idx) || idx < 0 || idx >= masterBrand.length) {
+            if (isNaN(idx) || idx < 0 || idx >= window.masterBrand.length) {
                 alert("Nomor merk tidak valid!");
                 return;
             }
             
-            const namaHapus = masterBrand[idx];
+            const namaHapus = window.masterBrand[idx];
             const konfirmasi = confirm(`Hapus merk "${namaHapus}" dari daftar pilihan master?\n(Catatan: Data asset yang sudah memakai merk ini tidak akan terhapus, hanya hilang dari pilihan datalist cepat)`);
             
             if (konfirmasi) {
-                masterBrand.splice(idx, 1);
-                populateDropdowns();
+                window.masterBrand.splice(idx, 1);
                 addLog(`Master Merk Dihapus: "${namaHapus}"`);
-                alert("Nama merk berhasil dihapus dari daftar rekomendasi!");
             }
         }
     }
 
-    function toggleTaskForm() {
+    window.toggleTaskForm = function() {
         const layoutGrid = document.getElementById('maintenanceLayoutGrid');
         const arrowBtn = layoutGrid.querySelector('.toggle-arrow-btn');
         layoutGrid.classList.toggle('form-minimized');
@@ -1575,10 +1594,10 @@
 
     // --- DASHBOARD CHARTS ---
     function updateDashboard() {
-        const total = tasks.length;
-        const completed = tasks.filter(t => t.status === 'Done').length;
-        const progress = tasks.filter(t => t.status === 'On Progress').length;
-        const pending = tasks.filter(t => t.status === 'Pending').length;
+        const total = window.tasks.length;
+        const completed = window.tasks.filter(t => t.status === 'Done').length;
+        const progress = window.tasks.filter(t => t.status === 'On Progress').length;
+        const pending = window.tasks.filter(t => t.status === 'Pending').length;
 
         const elTotal = document.getElementById('countTotal');
         if(elTotal) elTotal.textContent = total;
@@ -1588,7 +1607,7 @@
 
         const today = new Date(); today.setHours(0,0,0,0);
         let overdueCount = 0;
-        tasks.forEach(t => {
+        window.tasks.forEach(t => {
             if (t.status !== 'Done' && t.dueDate) {
                 const due = new Date(t.dueDate); due.setHours(0,0,0,0);
                 if (today > due) overdueCount++;
@@ -1605,9 +1624,9 @@
             }
         }
 
-        const lowPriority = tasks.filter(t => t.prioritas === 'low').length;
-        const medPriority = tasks.filter(t => t.prioritas === 'medium').length;
-        const highPriority = tasks.filter(t => t.prioritas === 'high').length;
+        const lowPriority = window.tasks.filter(t => t.prioritas === 'low').length;
+        const medPriority = window.tasks.filter(t => t.prioritas === 'medium').length;
+        const highPriority = window.tasks.filter(t => t.prioritas === 'high').length;
 
         const safeChartLayout = { padding: { left: 5, right: 15, top: 5, bottom: 5 } };
 
@@ -1626,24 +1645,24 @@
             }
         }
 
-        const dynamicKlinikColors = kliniks.map((_, index) => {
-            const hue = (index * (360 / Math.max(kliniks.length, 1))) % 360;
+        const dynamicKlinikColors = window.kliniks.map((_, index) => {
+            const hue = (index * (360 / Math.max(window.kliniks.length, 1))) % 360;
             return `hsl(${hue}, 70%, 55%)`; 
         });
 
         const elKlinikChart = document.getElementById('klinikChart');
         if (elKlinikChart) {
             const ctxKlinik = elKlinikChart.getContext('2d');
-            const klinikDataValues = kliniks.map(k => tasks.filter(t => t.klinik === k).length);
+            const klinikDataValues = window.kliniks.map(k => window.tasks.filter(t => t.klinik === k).length);
             if (klinikChartInstance) {
-                klinikChartInstance.data.labels = kliniks; 
+                klinikChartInstance.data.labels = window.kliniks; 
                 klinikChartInstance.data.datasets[0].data = klinikDataValues; 
                 klinikChartInstance.data.datasets[0].backgroundColor = dynamicKlinikColors; 
                 klinikChartInstance.update();
             } else {
                 klinikChartInstance = new Chart(ctxKlinik, {
                     type: 'pie',
-                    data: { labels: kliniks, datasets: [{ data: klinikDataValues, backgroundColor: dynamicKlinikColors, borderWidth: 2 }] },
+                    data: { labels: window.kliniks, datasets: [{ data: klinikDataValues, backgroundColor: dynamicKlinikColors, borderWidth: 2 }] },
                     options: { responsive: true, maintainAspectRatio: false, layout: safeChartLayout, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
                 });
             }
@@ -1652,15 +1671,15 @@
         const elAlatCategoryChart = document.getElementById('alatCategoryChart');
         if (elAlatCategoryChart) {
             const ctxAlatCategory = elAlatCategoryChart.getContext('2d');
-            const alatDataValues = masterAlat.map(alat => tasks.filter(t => t.alat === alat).length);
+            const alatDataValues = window.masterAlat.map(alat => window.tasks.filter(t => t.alat === alat).length);
             if (alatCategoryChartInstance) {
-                alatCategoryChartInstance.data.labels = masterAlat; 
+                alatCategoryChartInstance.data.labels = window.masterAlat; 
                 alatCategoryChartInstance.data.datasets[0].data = alatDataValues; 
                 alatCategoryChartInstance.update();
             } else {
                 alatCategoryChartInstance = new Chart(ctxAlatCategory, {
                     type: 'bar',
-                    data: { labels: masterAlat, datasets: [{ label: 'Jumlah Tugas', data: alatDataValues, backgroundColor: '#a855f7', borderColor: '#7e22ce', borderWidth: 1 }] },
+                    data: { labels: window.masterAlat, datasets: [{ label: 'Jumlah Tugas', data: alatDataValues, backgroundColor: '#a855f7', borderColor: '#7e22ce', borderWidth: 1 }] },
                     options: { responsive: true, maintainAspectRatio: false, layout: safeChartLayout, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } }
                 });
             }
@@ -1713,20 +1732,20 @@
         }
     }
 
-    function renderAssets() {
+    window.renderAssets = function() {
         const klinikTerpilih = document.getElementById('viewKlinik').value;
         if (!assetGrid) return;
         assetGrid.innerHTML = '';
         if(!klinikTerpilih) { assetGrid.innerHTML = `<div class="empty-state">Silakan buat lokasi klinik.</div>`; return; }
 
         document.getElementById('assetListTitle').textContent = `Daftar Inventaris - ${klinikTerpilih}`;
-        const filteredAssets = assets.filter(asset => asset.klinik === klinikTerpilih);
+        const filteredAssets = window.assets.filter(asset => asset.klinik === klinikTerpilih);
         updateAssetChart(filteredAssets, klinikTerpilih);
 
         if(filteredAssets.length === 0) { assetGrid.innerHTML = `<div class="empty-state">Belum ada data asset klinik.</div>`; return; }
 
         filteredAssets.forEach((asset) => {
-            const originalIndex = assets.findIndex(a => a === asset);
+            const originalIndex = window.assets.findIndex(a => a === asset);
             const card = document.createElement('div');
             card.className = 'asset-card';
             const imgHTML = asset.image ? `<img src="${asset.image}" alt="${asset.name}">` : `<span class="asset-no-img">Tidak ada foto</span>`;
@@ -1752,15 +1771,15 @@
         });
     }
 
-    function toggleAssetForm() {
+    window.toggleAssetForm = function() {
         const layoutGrid = document.getElementById('assetLayoutGrid');
         const arrowBtn = layoutGrid.querySelector('.toggle-arrow-btn');
         layoutGrid.classList.toggle('form-minimized');
         arrowBtn.textContent = layoutGrid.classList.contains('form-minimized') ? '▶' : '◀';
-        setTimeout(() => { renderAssets(); }, 310);
+        setTimeout(() => { window.renderAssets(); }, 310);
     }
 
-    function switchTab(tabId, button) {
+    window.switchTab = function(tabId, button) {
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById(tabId).classList.add('active'); 
@@ -1774,7 +1793,7 @@
             renderTasks(); 
             renderLogs(); 
         } else if(tabId === 'asset-tab') { 
-            renderAssets(); 
+            window.renderAssets(); 
         } else if(tabId === 'calibration-tab') {
             runAutoCalibrationScheduler(); 
             populateDropdowns(); 
@@ -1782,8 +1801,8 @@
         }
     }
 
-    function enterEditMode(index) {
-        const asset = assets[index];
+    window.enterEditMode = function(index) {
+        const asset = window.assets[index];
         document.getElementById('formAssetTitle').textContent = "Edit Data Asset";
         document.getElementById('editAssetIndex').value = index;
         document.getElementById('assetKlinik').value = asset.klinik;
@@ -1801,7 +1820,7 @@
         document.getElementById('inputCardWrapper').scrollIntoView({ behavior: 'smooth' });
     }
 
-    function cancelEditMode() {
+    window.cancelEditMode = function() {
         assetForm.reset(); document.getElementById('formAssetTitle').textContent = "Input Asset Baru";
         document.getElementById('editAssetIndex').value = ""; document.getElementById('editIndicator').style.display = "none";
         document.getElementById('btnAssetCancel').style.display = "none"; document.getElementById('imgHelpText').style.display = "none";
@@ -1821,9 +1840,9 @@
             const needCalInput = document.getElementById('assetNeedCalibration').checked;
             const imgFile = document.getElementById('assetImg').files[0];
 
-            if(nameInput && !masterAlat.includes(nameInput.trim())) masterAlat.push(nameInput.trim());
-            if(brandInput && !masterBrand.includes(brandInput.trim())) masterBrand.push(brandInput.trim());
-            if(roomInput && !masterRooms.includes(roomInput.trim())) masterRooms.push(roomInput.trim());
+            if(nameInput && !window.masterAlat.includes(nameInput.trim())) window.masterAlat.push(nameInput.trim());
+            if(brandInput && !window.masterBrand.includes(brandInput.trim())) window.masterBrand.push(brandInput.trim());
+            if(roomInput && !window.masterRooms.includes(roomInput.trim())) window.masterRooms.push(roomInput.trim());
 
             const save = (imgResult) => {
                 const assetData = { 
@@ -1833,39 +1852,35 @@
                     room: roomInput,
                     desc: descInput, 
                     needCalibration: needCalInput,
-                    image: imgResult || (editIndexStr !== "" ? assets[parseInt(editIndexStr)].image : null)
+                    image: imgResult || (editIndexStr !== "" ? window.assets[parseInt(editIndexStr)].image : null)
                 };
 
                 if (editIndexStr !== "") {
                     const index = parseInt(editIndexStr);
-                    assets[index] = assetData;
+                    window.assets[index] = assetData;
                     addLog(`Asset diubah: [${nameInput}] Ruangan [${roomInput}] di ${klinikInput}`);
                 } else {
-                    assets.push(assetData);
+                    window.assets.push(assetData);
                     addLog(`Asset baru ditambahkan: [${nameInput}] Ruangan [${roomInput}] di ${klinikInput}`);
                 }
-                localStorage.setItem('dentalAssets', JSON.stringify(assets));
                 document.getElementById('viewKlinik').value = klinikInput;
-                cancelEditMode(); renderAssets(); populateDropdowns();
+                window.cancelEditMode();
             };
 
             if (imgFile) { const r = new FileReader(); r.onloadend = function() { save(r.result); }; r.readAsDataURL(imgFile); } else { save(null); }
         });
     }
 
-    function deleteAsset(index) { 
+    window.deleteAsset = function(index) { 
         if(confirm("Hapus asset ini?")) { 
-            const deleted = assets[index];
-            assets.splice(index, 1); 
-            localStorage.setItem('dentalAssets', JSON.stringify(assets)); 
+            const deleted = window.assets[index];
+            window.assets.splice(index, 1); 
             addLog(`Asset deleted permanen: [${deleted.name}] dari ${deleted.klinik}`);
-            renderAssets(); 
-            populateDropdowns();
         } 
     }
 
     // --- CALIBRATION FUNCTIONS ---
-    function toggleCalibrationForm() {
+    window.toggleCalibrationForm = function() {
         const layoutGrid = document.getElementById('calibrationLayoutGrid');
         const arrowBtn = layoutGrid.querySelector('.toggle-arrow-btn.btn-cal');
         layoutGrid.classList.toggle('form-minimized');
@@ -1880,9 +1895,9 @@
         let countSafe = 0;
 
         const klinikUrgentCounts = {};
-        kliniks.forEach(k => { klinikUrgentCounts[k] = 0; });
+        window.kliniks.forEach(k => { klinikUrgentCounts[k] = 0; });
 
-        calibrations.forEach(cal => {
+        window.calibrations.forEach(cal => {
             const isFilterMatch = document.getElementById('viewKlinikCal').value === 'SEMUA' || cal.klinik === document.getElementById('viewKlinikCal').value;
 
             if (cal.status === 'Dijadwalkan' && cal.nextDate) {
@@ -1964,7 +1979,7 @@
         }
     }
 
-    function renderCalibrations() {
+    window.renderCalibrations = function() {
         const tableBody = document.getElementById('calibrationTableBody');
         if (!tableBody) return;
         tableBody.innerHTML = '';
@@ -1972,9 +1987,9 @@
         const filterKlinikCal = document.getElementById('viewKlinikCal').value;
         document.getElementById('calibrationListTitle').textContent = `Agenda Kontrol Kalibrasi Berkala - Lokasi: ${filterKlinikCal === 'SEMUA' ? 'Semua Klinik' : filterKlinikCal}`;
 
-        let filteredCalibrations = calibrations;
+        let filteredCalibrations = window.calibrations;
         if (filterKlinikCal !== "SEMUA") {
-            filteredCalibrations = calibrations.filter(cal => cal.klinik === filterKlinikCal);
+            filteredCalibrations = window.calibrations.filter(cal => cal.klinik === filterKlinikCal);
         }
 
         updateCalibrationDashboard(filteredCalibrations);
@@ -1987,7 +2002,7 @@
         const today = new Date(); today.setHours(0,0,0,0);
 
         filteredCalibrations.forEach((cal) => {
-            const originalIndex = calibrations.findIndex(c => c === cal);
+            const originalIndex = window.calibrations.findIndex(c => c === cal);
 
             let isOverdue = false;
             let isWarningPeriod = false; 
@@ -2053,8 +2068,8 @@
         const fileInput = document.getElementById('calFile').files[0];
         const assetNameVal = document.getElementById('calAsset').value;
 
-        if(assetNameVal && !masterAlat.includes(assetNameVal.trim())) {
-            masterAlat.push(assetNameVal.trim());
+        if(assetNameVal && !window.masterAlat.includes(assetNameVal.trim())) {
+            window.masterAlat.push(assetNameVal.trim());
         }
 
         const executeSave = (fileDataUrl) => {
@@ -2066,23 +2081,18 @@
                 nextDate: document.getElementById('calNextDate').value,
                 status: document.getElementById('calStatus').value,
                 notes: document.getElementById('calNotes').value,
-                attachedFile: fileDataUrl || (editIdxStr !== "" ? calibrations[parseInt(editIdxStr)].attachedFile : null)
+                attachedFile: fileDataUrl || (editIdxStr !== "" ? window.calibrations[parseInt(editIdxStr)].attachedFile : null)
             };
 
             if (editIdxStr !== "") {
                 const idx = parseInt(editIdxStr);
-                calibrations[idx] = calibrationData;
+                window.calibrations[idx] = calibrationData;
                 addLog(`Jadwal Kalibrasi diperbarui: [${calibrationData.assetName}] di ${calibrationData.klinik} (${calibrationData.status})`);
             } else {
-                calibrations.push(calibrationData);
+                window.calibrations.push(calibrationData);
                 addLog(`Agenda Kalibrasi Baru ditambahkan: [${calibrationData.assetName}] di ${calibrationData.klinik}`);
             }
-
-            localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
-            cancelCalibrationEditMode();
-            runAutoCalibrationScheduler();
-            renderCalibrations();
-            populateDropdowns();
+            window.cancelCalibrationEditMode();
         };
 
         if (fileInput) {
@@ -2094,8 +2104,8 @@
         }
     });
 
-    function enterCalibrationEditMode(originalIndex) {
-        const cal = calibrations[originalIndex];
+    window.enterCalibrationEditMode = function(originalIndex) {
+        const cal = window.calibrations[originalIndex];
         document.getElementById('formCalibrationTitle').textContent = "Edit Agenda Kalibrasi";
         document.getElementById('editCalibrationIndex').value = originalIndex;
         document.getElementById('calKlinik').value = cal.klinik || "";
@@ -2113,7 +2123,7 @@
         document.getElementById('formCalibrationTitle').scrollIntoView({ behavior: 'smooth' });
     }
 
-    function cancelCalibrationEditMode() {
+    window.cancelCalibrationEditMode = function() {
         document.getElementById('calibrationForm').reset();
         document.getElementById('formCalibrationTitle').textContent = "Penjadwalan Kalibrasi";
         document.getElementById('editCalibrationIndex').value = "";
@@ -2125,31 +2135,20 @@
         document.getElementById('calNextDate').valueAsDate = new Date();
     }
 
-    function deleteCalibration(originalIndex) {
+    window.deleteCalibration = function(originalIndex) {
         if (confirm("Apakah Anda yakin ingin menghapus agenda jadwal kalibrasi ini secara permanen?")) {
-            const deleted = calibrations[originalIndex];
-            calibrations.splice(originalIndex, 1);
-            localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
+            const deleted = window.calibrations[originalIndex];
+            window.calibrations.splice(originalIndex, 1);
             addLog(`Jadwal Kalibrasi dihapus: [${deleted.assetName}] dari ${deleted.klinik}`);
-            renderCalibrations();
         }
     }
 
     // --- INITIALIZATION ---
-    window.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('tanggal').valueAsDate = new Date();
-        document.getElementById('dueDate').valueAsDate = new Date();
-        
-        if(document.getElementById('calLastDate')) document.getElementById('calLastDate').valueAsDate = new Date();
-        if(document.getElementById('calNextDate')) document.getElementById('calNextDate').valueAsDate = new Date();
-
-        runAutoCalibrationScheduler();
-        populateDropdowns(); 
-        renderTasks(); 
-        renderAssets(); 
-        renderLogs();
-    });
+    document.getElementById('tanggal').valueAsDate = new Date();
+    document.getElementById('dueDate').valueAsDate = new Date();
+    
+    if(document.getElementById('calLastDate')) document.getElementById('calLastDate').valueAsDate = new Date();
+    if(document.getElementById('calNextDate')) document.getElementById('calNextDate').valueAsDate = new Date();
 </script>
 </body>
 </html>
-    
