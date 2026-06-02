@@ -1,0 +1,2155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dental Maintenance & Asset Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #0ea5e9;
+            --primary-dark: #0284c7;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --background: #f1f5f9;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+            --overdue-bg: #fee2e2;
+            --overdue-border: #ef4444;
+            --calibration-color: #8b5cf6;
+            --calibration-dark: #6d28d9;
+            --warning-light: #fffbeb;
+            --warning-border: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--background);
+            color: var(--text);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            position: relative;
+        }
+
+        header h1 {
+            font-size: 26px;
+            margin-bottom: 5px;
+        }
+
+        header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .header-author {
+            position: absolute;
+            right: 15px;
+            bottom: 10px;
+            font-size: 11px;
+            font-style: italic;
+            opacity: 0.8;
+            letter-spacing: 0.05em;
+            animation: blinkAnimation 3s infinite ease-in-out;
+        }
+
+        @keyframes blinkAnimation {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 0.9; }
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: var(--card-bg);
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            width: 100%;
+        }
+
+        .nav-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            width: auto;
+        }
+
+        .nav-btn.active {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .nav-btn.active.btn-cal-tab {
+            background-color: var(--calibration-color);
+        }
+
+        .tab-content {
+            display: none;
+            width: 100%;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .dashboard-summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+
+        .summary-card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 100px;
+        }
+
+        .summary-card h3 {
+            font-size: 13px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 5px;
+        }
+
+        .summary-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .summary-card.total .value { color: var(--primary-dark); }
+        .summary-card.pending .value { color: var(--danger); }
+        .summary-card.progress .value { color: var(--warning); }
+        .summary-card.completed .value { color: var(--success); }
+
+        .overdue-subtext {
+            font-size: 11px;
+            font-weight: 600;
+            color: #b91c1c;
+            margin-top: 2px;
+            display: none;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+            width: 100%;
+            align-items: stretch;
+        }
+
+        .charts-grid-cal {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+            width: 100%;
+        }
+
+        .charts-grid .card, .charts-grid-cal .card {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .filter-bar, .history-filter-bar {
+            background: #fff;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            width: 100%;
+        }
+
+        .history-filter-bar {
+            background: #f8fafc;
+            border: 1px dashed var(--primary);
+            justify-content: flex-start;
+            margin-bottom: 15px;
+            padding: 12px;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #475569;
+            white-space: nowrap;
+        }
+
+        .filter-group input[type="date"], .filter-bar select {
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            outline: none;
+            color: var(--text);
+            background-color: #fff;
+        }
+
+        .filter-bar select {
+            min-width: 180px;
+            border: 2px solid var(--primary);
+        }
+
+        .filter-bar.cal-filter select {
+            border: 2px solid var(--calibration-color);
+        }
+
+        .btn-inline {
+            width: auto;
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+
+        .maintenance-layout-grid, .asset-layout-grid, .calibration-layout-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            align-items: start;
+            transition: grid-template-columns 0.3s ease;
+            width: 100%;
+        }
+
+        .maintenance-layout-grid.form-minimized, .asset-layout-grid.form-minimized, .calibration-layout-grid.form-minimized {
+            grid-template-columns: 45px 1fr;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            height: fit-content;
+            position: relative;
+        }
+
+        .card h2 {
+            font-size: 15px;
+            margin-bottom: 12px;
+            color: var(--primary-dark);
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 6px;
+        }
+
+        .card h2.cal-title-color {
+            color: var(--calibration-dark);
+        }
+
+        .log-container {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 12px;
+        }
+
+        .log-item {
+            padding: 6px 8px;
+            border-bottom: 1px dashed var(--border);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .log-item:last-child { border-bottom: none; }
+        .log-timestamp { color: #64748b; font-weight: 600; white-space: nowrap; margin-right: 15px; }
+        .log-text { color: var(--text); flex-grow: 1; }
+
+        .collapsible-form-container {
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .form-minimized .collapsible-form-container {
+            width: 0;
+            padding: 0;
+            margin: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toggle-arrow-btn {
+            width: 30px;
+            height: 30px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 10px;
+            transition: background-color 0.2s;
+        }
+        .toggle-arrow-btn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .toggle-arrow-btn.btn-cal {
+            background: var(--calibration-color);
+        }
+        .toggle-arrow-btn.btn-cal:hover {
+            background: var(--calibration-dark);
+        }
+
+        .combo-container {
+            position: relative;
+            display: flex;
+            gap: 5px;
+        }
+
+        .chart-container {
+            position: relative;
+            margin: auto;
+            height: 200px; 
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .chart-container.large {
+            height: 250px;
+        }
+
+        .chart-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 15px;
+        }
+
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        .task-table th, .task-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .task-table th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+        }
+
+        .task-table tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .tr-done { border-left: 4px solid var(--success); }
+        .tr-progress { border-left: 4px solid var(--warning); }
+        .tr-pending { border-left: 4px solid var(--danger); }
+        .tr-overdue { background-color: var(--overdue-bg) !important; border-left: 4px solid var(--overdue-border) !important; }
+        .tr-warning-period { background-color: var(--warning-light) !important; border-left: 4px solid var(--warning-border) !important; }
+
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        .pagination-info {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .pagination-btn {
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            background-color: #fff;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            cursor: pointer;
+            width: auto;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background-color: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-btn.active {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group.checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+
+        .form-group.checkbox-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .form-group.checkbox-group label {
+            display: inline;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--calibration-dark);
+            cursor: pointer;
+            margin-bottom: 0;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            height: 70px;
+        }
+
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-dark); }
+        .btn-calibration { background-color: var(--calibration-color); color: white; }
+        .btn-calibration:hover { background-color: var(--calibration-dark); }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-high { background-color: #fee2e2; color: #991b1b; }
+        .badge-medium { background-color: #fef3c7; color: #92400e; }
+        .badge-low { background-color: #dcfce7; color: #166534; }
+        .badge-overdue { background-color: #dc2626; color: white; font-size: 10px; }
+        .badge-warning-period { background-color: var(--warning); color: white; font-size: 10px; }
+        .badge-need-cal { background-color: #ede9fe; color: #6d28d9; border: 1px dashed var(--calibration-color); font-size: 10px; margin-top: 5px; display: inline-flex; align-items: center; gap: 3px;}
+
+        .status-select-inline {
+            padding: 4px 6px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            outline: none;
+            cursor: pointer;
+            background-color: #fff;
+        }
+        .status-select-inline.select-done { color: var(--success); border-color: var(--success); }
+        .status-select-inline.select-pending { color: var(--danger); border-color: var(--danger); }
+        .status-select-inline.select-progress { color: var(--warning); border-color: var(--warning); }
+
+        .btn-action { width: auto; padding: 4px 8px; font-size: 11px; margin-left: 2px; }
+        .btn-success { background-color: var(--success); color: white; }
+        .btn-danger { background-color: var(--danger); color: white; }
+        .btn-warning { background-color: var(--warning); color: white; }
+
+        .empty-state {
+            text-align: center;
+            color: #64748b;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        .asset-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .asset-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .asset-img-holder {
+            width: 100%;
+            height: 130px;
+            background-color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .asset-img-holder img { width: 100%; height: 100%; object-fit: cover; }
+        .asset-no-img { color: #94a3b8; font-size: 12px; font-style: italic; }
+
+        .asset-info {
+            padding: 12px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .asset-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+        .asset-brand { font-size: 12px; font-weight: bold; color: var(--primary-dark); margin-bottom: 5px; }
+        .asset-room { font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 4px; display: flex; align-items: center; gap: 3px; }
+        .asset-desc { font-size: 12px; color: #64748b; margin-bottom: 12px; line-height: 1.4; }
+
+        .form-indicator {
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-bottom: 15px;
+            display: none;
+            color: #b45309;
+        }
+
+        .btn-view-file {
+            display: inline-block;
+            background-color: var(--primary);
+            color: white;
+            padding: 3px 6px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+        .btn-view-file:hover {
+            background-color: var(--primary-dark);
+        }
+
+        @media (max-width: 1200px) {
+            .charts-grid { grid-template-columns: repeat(2, 1fr); }
+            .dashboard-summary { grid-template-columns: repeat(2, 1fr); }
+            .charts-grid-cal { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .charts-grid, .dashboard-summary, .charts-grid-cal { grid-template-columns: 1fr; }
+            .maintenance-layout-grid, .asset-layout-grid, .calibration-layout-grid { grid-template-columns: 1fr !important; }
+            .toggle-arrow-btn { display: none !important; }
+            .collapsible-form-container { opacity: 1 !important; width: auto !important; pointer-events: auto !important; }
+            .header-author { position: static; margin-top: 10px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Dental Maintenance & Asset Manager</h1>
+        <p>Sistem Pengelolaan Tugas Pemeliharaan & Inventaris Data Asset Klinik Gigi</p>
+        <div class="header-author">Made by : dr. Tarjo sp.BU</div>
+    </header>
+
+    <div class="nav-tabs">
+        <button class="nav-btn active" onclick="switchTab('maintenance-tab', this)">Dashboard & Tugas Maintenance</button>
+        <button class="nav-btn" onclick="switchTab('asset-tab', this)">Data Asset Klinik</button>
+        <button class="nav-btn" onclick="switchTab('calibration-tab', this)">Jadwal Kalibrasi Alat</button>
+    </div>
+
+    <div id="maintenance-tab" class="tab-content active">
+        <div class="dashboard-summary">
+            <div class="summary-card total">
+                <h3>Total Tugas</h3>
+                <div class="value" id="countTotal">0</div>
+            </div>
+            <div class="summary-card progress">
+                <h3>On Progress</h3>
+                <div class="value" id="countProgress">0</div>
+            </div>
+            <div class="summary-card pending">
+                <h3>Pending</h3>
+                <div class="value" id="countPending">0</div>
+                <div class="overdue-subtext" id="overdueSubtext">(0 Lewat Tenggat)</div>
+            </div>
+            <div class="summary-card completed">
+                <h3>Selesai (Done)</h3>
+                <div class="value" id="countCompleted">0</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="card">
+                <h2>Grafik Status Tugas</h2>
+                <div class="chart-container"><canvas id="statusChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h2>Grafik Lokasi Klinik</h2>
+                <div class="chart-container"><canvas id="klinikChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h2>Grafik Kategori Alat</h2>
+                <div class="chart-container"><canvas id="alatCategoryChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h2>Grafik Tingkat Prioritas</h2>
+                <div class="chart-container"><canvas id="priorityChart"></canvas></div>
+            </div>
+        </div>
+
+        <div id="maintenanceLayoutGrid" class="maintenance-layout-grid">
+            <div class="card" id="taskCardWrapper">
+                <button type="button" class="toggle-arrow-btn" onclick="toggleTaskForm()">◀</button>
+                <div class="collapsible-form-container">
+                    <h2 id="formTaskTitle">Tambah Tugas Baru</h2>
+                    <div id="taskEditIndicator" class="form-indicator">
+                        Anda sedang mengubah data tugas. Klik <strong>Batal</strong> untuk kembali.
+                    </div>
+                    <form id="maintenanceForm">
+                        <input type="hidden" id="editTaskIndex" value="">
+                        <div class="form-group">
+                            <label for="taskKlinik">Lokasi Klinik</label>
+                            <select id="taskKlinik" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="alat">Nama Alat Dental</label>
+                            <select id="alat" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="tugas">Jenis Perawatan / Tugas</label>
+                            <input type="text" id="tugas" placeholder="Contoh: Kuras air & filter" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="tanggal">Tanggal Dimulai</label>
+                            <input type="date" id="tanggal" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="dueDate">Tanggal Tenggat (Due Date)</label>
+                            <input type="date" id="dueDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="prioritas">Tingkat Prioritas</label>
+                            <select id="prioritas">
+                                <option value="low">Rendah (Rutin)</option>
+                                <option value="medium" selected>Sedang (Penting)</option>
+                                <option value="high">Tinggi (Kritis)</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; gap:10px;">
+                            <button type="submit" id="btnTaskSubmit" class="btn-primary">Simpan Tugas</button>
+                            <button type="button" id="btnTaskCancel" class="btn-danger" style="display:none;" onclick="cancelTaskEditMode()">Batal</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="card">
+                    <h2>Daftar Tugas Maintenance</h2>
+                    
+                    <div class="history-filter-bar">
+                        <div class="filter-group">
+                            <label for="filterStartDate">Cari Histori Dari Tanggal:</label>
+                            <input type="date" id="filterStartDate" onchange="resetToPageOneAndRender()">
+                            <label for="filterEndDate">s/d:</label>
+                            <input type="date" id="filterEndDate" onchange="resetToPageOneAndRender()">
+                            <button type="button" class="btn-primary btn-inline" style="padding: 5px 10px;" onclick="clearDateFilter()">Reset Cari</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="task-table">
+                            <thead>
+                                <tr>
+                                    <th>Alat & Deskripsi</th>
+                                    <th>Lokasi</th>
+                                    <th>Tanggal Mulai</th>
+                                    <th>Tenggat</th>
+                                    <th>Prioritas</th>
+                                    <th>Status</th>
+                                    <th style="text-align:right;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taskTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination-container">
+                        <div class="pagination-info" id="paginationInfo">Menampilkan 0-0 dari 0 tugas</div>
+                        <div class="pagination-buttons" id="paginationButtons"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h2>Log History Perubahan Tugas</h2>
+                        <button type="button" class="btn-danger btn-inline" style="padding: 4px 10px; font-size: 11px;" onclick="clearLogs()">Bersihkan Log</button>
+                    </div>
+                    <div class="log-container" id="logContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="asset-tab" class="tab-content">
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label for="viewKlinik">PILIH LOKASI KLINIK :</label>
+                <select id="viewKlinik" onchange="renderAssets()"></select>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn-primary btn-inline" onclick="manageKlinik('add')">+ Tambah Klinik</button>
+                <button type="button" class="btn-warning btn-inline" onclick="manageKlinik('edit')">✏️ Edit</button>
+                <button type="button" class="btn-danger btn-inline" onclick="manageKlinik('delete')">Hapus</button>
+            </div>
+        </div>
+        
+        <div id="assetLayoutGrid" class="asset-layout-grid">
+            <div class="card asset-input-card" id="inputCardWrapper">
+                <button type="button" class="toggle-arrow-btn" onclick="toggleAssetForm()">◀</button>
+                <div class="collapsible-form-container">
+                    <h2 id="formAssetTitle">Input Asset Baru</h2>
+                    <div id="editIndicator" class="form-indicator">
+                        Anda sedang mengubah data asset. Klik <strong>Batal</strong> untuk kembali.
+                    </div>
+                    <form id="assetForm">
+                        <input type="hidden" id="editAssetIndex" value="">
+                        <div class="form-group">
+                            <label for="assetKlinik">Lokasi Penempatan Klinik</label>
+                            <select id="assetKlinik"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="assetName">Nama Alat / Asset</label>
+                            <div class="combo-container">
+                                <input type="text" id="assetName" list="masterAssetList" placeholder="Ketik/pilih..." required>
+                                <datalist id="masterAssetList"></datalist>
+                                <button type="button" class="btn-primary btn-inline" style="padding:0 10px;" onclick="manageMasterAlat()">⚙</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="assetBrand">Merk Alat</label>
+                            <div class="combo-container">
+                                <input type="text" id="assetBrand" list="masterBrandList" placeholder="Ketik/pilih..." required>
+                                <datalist id="masterBrandList"></datalist>
+                                <button type="button" class="btn-primary btn-inline" style="padding:0 10px;" onclick="manageMasterBrand()">⚙</button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="assetRoom">Nama Ruangan / Penempatan</label>
+                            <div class="combo-container">
+                                <input type="text" id="assetRoom" list="masterRoomList" placeholder="Contoh: Poli Gigi 1, Lab, Sterilisasi..." required>
+                                <datalist id="masterRoomList"></datalist>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="assetDesc">Keterangan / Tulisan Detail</label>
+                            <textarea id="assetDesc" placeholder="Spesifikasi..." required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="assetImg">Foto Asset</label>
+                            <input type="file" id="assetImg" accept="image/*">
+                            <small id="imgHelpText" style="color:#64748b; display:none;">Kosongkan jika tidak diubah</small>
+                        </div>
+                        
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="assetNeedCalibration">
+                            <label for="assetNeedCalibration">Butuh Kalibrasi Berkala 🛠️</label>
+                        </div>
+
+                        <div style="display:flex; gap:10px;">
+                            <button type="submit" id="btnAssetSubmit" class="btn-primary">Simpan Asset</button>
+                            <button type="button" id="btnAssetCancel" class="btn-danger" style="display:none;" onclick="cancelEditMode()">Batal</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="card" style="width: 100%;">
+                    <h2 id="assetChartTitle">Grafik Kuantitas Asset Terbanyak</h2>
+                    <div class="chart-container large"><canvas id="assetCountChart"></canvas></div>
+                </div>
+                <div class="card" style="width: 100%;">
+                    <h2 id="assetListTitle">Daftar Inventaris Asset</h2>
+                    <div id="assetGrid" class="asset-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="calibration-tab" class="tab-content">
+        <div class="filter-bar cal-filter">
+            <div class="filter-group">
+                <label for="viewKlinikCal">FILTER LOKASI KALIBRASI :</label>
+                <select id="viewKlinikCal" onchange="renderCalibrations()">
+                    <option value="SEMUA">-- Tampilkan Semua Klinik --</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="charts-grid-cal">
+            <div class="card">
+                <h2 class="cal-title-color">Grafik Reminder Status Jatuh Tempo Kalibrasi</h2>
+                <div class="chart-container"><canvas id="calReminderChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h2 class="cal-title-color">Grafik Top Klinik Butuh Kalibrasi (Mendesak)</h2>
+                <div class="chart-container"><canvas id="calKlinikUrgentChart"></canvas></div>
+            </div>
+        </div>
+
+        <div id="calibrationLayoutGrid" class="calibration-layout-grid">
+            <div class="card" id="calibrationCardWrapper">
+                <button type="button" class="toggle-arrow-btn btn-cal" onclick="toggleCalibrationForm()">◀</button>
+                <div class="collapsible-form-container">
+                    <h2 id="formCalibrationTitle" class="cal-title-color">Penjadwalan Kalibrasi</h2>
+                    <div id="calibrationEditIndicator" class="form-indicator">
+                        Anda sedang merubah jadwal kalibrasi. Klik <strong>Batal</strong> untuk kembali.
+                    </div>
+                    <form id="calibrationForm">
+                        <input type="hidden" id="editCalibrationIndex" value="">
+                        
+                        <div class="form-group">
+                            <label for="calKlinik">Lokasi Klinik</label>
+                            <select id="calKlinik" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="calAsset">Nama Alat Medis</label>
+                            <input type="text" id="calAsset" list="masterAssetList" placeholder="Ketik nama alat medis bebas..." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="calVendor">Vendor Pelaksana Kalibrasi</label>
+                            <input type="text" id="calVendor" placeholder="Contoh: BPFK / PT. Sukses Medika" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="calLastDate">Tanggal Kalibrasi Terakhir</label>
+                            <input type="date" id="calLastDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="calNextDate">Tanggal Kalibrasi Berikutnya</label>
+                            <input type="date" id="calNextDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="calStatus">Status Kesiapan Alat</label>
+                            <select id="calStatus">
+                                <option value="Dijadwalkan" selected>Dijadwalkan</option>
+                                <option value="Selesai">Selesai Terkalibrasi</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="calNotes">Catatan Tambahan (No. Sertifikat dll.)</label>
+                            <textarea id="calNotes" placeholder="Tulis keterangan nomor sertifikat kalibrasi jika ada..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="calFile">Lampiran File / Sertifikat Kalibrasi</label>
+                            <input type="file" id="calFile" accept="image/*,application/pdf">
+                            <small id="calFileHelpText" style="color:#64748b; display:none;">Kosongkan jika tidak ingin mengubah berkas terlampir</small>
+                        </div>
+
+                        <div style="display:flex; gap:10px;">
+                            <button type="submit" id="btnCalSubmit" class="btn-calibration">Simpan Jadwal</button>
+                            <button type="button" id="btnCalCancel" class="btn-danger" style="display:none;" onclick="cancelCalibrationEditMode()">Batal</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="card">
+                    <h2 class="cal-title-color" id="calibrationListTitle">Agenda Kontrol Kalibrasi Berkala Alat Medis</h2>
+                    <div class="table-responsive">
+                        <table class="task-table">
+                            <thead>
+                                <tr>
+                                    <th>Lokasi Klinik</th>
+                                    <th>Detail Alat Medis Klinik</th>
+                                    <th>Vendor Penguji</th>
+                                    <th>Kalibrasi Terakhir</th>
+                                    <th>Jatuh Tempo Berikutnya</th>
+                                    <th>Status / Berkas</th>
+                                    <th style="text-align:right;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="calibrationTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- DATABASE MASTER LOCALSTORAGE ---
+    let kliniks = JSON.parse(localStorage.getItem('dentalKliniks')) || ["Klinik Pusat", "Klinik Cabang A", "Klinik Cabang B"];
+    let masterAlat = JSON.parse(localStorage.getItem('dentalMasterAlat')) || ["Dental Chair", "Autoclave", "X-Ray Dental", "Compressor", "Scaling Unit"];
+    let masterBrand = JSON.parse(localStorage.getItem('dentalMasterBrand')) || ["Belmont", "Osstem", "Anthos", "Woodpecker", "Sirona"];
+    let masterRooms = JSON.parse(localStorage.getItem('dentalMasterRooms')) || ["Poli Gigi 1", "Poli Gigi 2", "Ruang Sterilisasi", "Ruang Lab"];
+    let assets = JSON.parse(localStorage.getItem('dentalAssets')) || [];
+    let tasks = JSON.parse(localStorage.getItem('dentalTasks')) || [];
+    let historyLogs = JSON.parse(localStorage.getItem('dentalHistoryLogs')) || [];
+    let calibrations = JSON.parse(localStorage.getItem('dentalCalibrations')) || [];
+
+    let currentPage = 1;
+    const rowsPerPage = 10;
+
+    let statusChartInstance = null, priorityChartInstance = null, klinikChartInstance = null, alatCategoryChartInstance = null, assetChartInstance = null;
+    let calReminderChartInstance = null, calKlinikUrgentChartInstance = null;
+
+    // --- SINKRONISASI OTOMATIS STATUS & KALENDER H-90 ---
+    function runAutoCalibrationScheduler() {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        let updatedAny = false;
+
+        calibrations.forEach((cal) => {
+            if (cal.status === 'Selesai' && cal.nextDate) {
+                const nextDateObj = new Date(cal.nextDate);
+                nextDateObj.setHours(0,0,0,0);
+
+                const diffTime = nextDateObj - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays <= 90) {
+                    cal.status = 'Dijadwalkan';
+                    updatedAny = true;
+                    addLog(`[AUTO-SCHEDULER] Alat [${cal.assetName}] di ${cal.klinik} otomatis kembali ke status "Dijadwalkan" karena memasuki H-${diffDays} hari menjelang jatuh tempo kalibrasi.`);
+                }
+            }
+        });
+
+        if (updatedAny) {
+            localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
+        }
+    }
+
+    function populateDropdowns() {
+        const viewKlinik = document.getElementById('viewKlinik');
+        const viewKlinikCal = document.getElementById('viewKlinikCal');
+        const assetKlinik = document.getElementById('assetKlinik');
+        const taskKlinik = document.getElementById('taskKlinik');
+        const calKlinik = document.getElementById('calKlinik');
+        const alatSelect = document.getElementById('alat');
+        const masterAssetList = document.getElementById('masterAssetList');
+        const masterBrandList = document.getElementById('masterBrandList');
+        const masterRoomList = document.getElementById('masterRoomList');
+
+        const currentSelectedView = viewKlinik.value;
+        const currentSelectedCalView = viewKlinikCal ? viewKlinikCal.value : "SEMUA";
+        const currentSelectedInput = assetKlinik.value;
+        const currentSelectedTask = taskKlinik ? taskKlinik.value : "";
+        const currentSelectedCalKlinik = calKlinik ? calKlinik.value : "";
+        const currentSelectedAlat = alatSelect ? alatSelect.value : "";
+
+        viewKlinik.innerHTML = ''; assetKlinik.innerHTML = '';
+        if(taskKlinik) taskKlinik.innerHTML = '';
+        if(calKlinik) calKlinik.innerHTML = '';
+        if(viewKlinikCal) viewKlinikCal.innerHTML = '<option value="SEMUA">-- Tampilkan Semua Klinik --</option>';
+
+        kliniks.forEach(k => {
+            viewKlinik.innerHTML += `<option value="${k}">${k}</option>`;
+            assetKlinik.innerHTML += `<option value="${k}">${k}</option>`;
+            if(taskKlinik) taskKlinik.innerHTML += `<option value="${k}">${k}</option>`;
+            if(calKlinik) calKlinik.innerHTML += `<option value="${k}">${k}</option>`;
+            if(viewKlinikCal) viewKlinikCal.innerHTML += `<option value="${k}">${k}</option>`;
+        });
+
+        if (alatSelect) {
+            alatSelect.innerHTML = '';
+            masterAlat.forEach(alat => { alatSelect.innerHTML += `<option value="${alat}">${alat}</option>`; });
+        }
+
+        if(kliniks.includes(currentSelectedView)) viewKlinik.value = currentSelectedView;
+        if(viewKlinikCal && (currentSelectedCalView === "SEMUA" || kliniks.includes(currentSelectedCalView))) viewKlinikCal.value = currentSelectedCalView;
+        if(kliniks.includes(currentSelectedInput)) assetKlinik.value = currentSelectedInput;
+        if(taskKlinik && kliniks.includes(currentSelectedTask)) taskKlinik.value = currentSelectedTask;
+        if(calKlinik && kliniks.includes(currentSelectedCalKlinik)) calKlinik.value = currentSelectedCalKlinik;
+        if(alatSelect && masterAlat.includes(currentSelectedAlat)) alatSelect.value = currentSelectedAlat;
+
+        masterAssetList.innerHTML = '';
+        masterAlat.forEach(alat => { masterAssetList.innerHTML += `<option value="${alat}"></option>`; });
+
+        masterBrandList.innerHTML = '';
+        masterBrand.forEach(brand => { masterBrandList.innerHTML += `<option value="${brand}"></option>`; });
+
+        if (masterRoomList) {
+            masterRoomList.innerHTML = '';
+            masterRooms.forEach(room => { masterRoomList.innerHTML += `<option value="${room}"></option>`; });
+        }
+
+        localStorage.setItem('dentalKliniks', JSON.stringify(kliniks));
+        localStorage.setItem('dentalMasterAlat', JSON.stringify(masterAlat));
+        localStorage.setItem('dentalMasterBrand', JSON.stringify(masterBrand));
+        localStorage.setItem('dentalMasterRooms', JSON.stringify(masterRooms));
+    }
+
+    // --- LOG HISTORY FUNCTIONS ---
+    function addLog(message) {
+        const now = new Date();
+        const timeString = now.toLocaleDateString('id-ID') + ' ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        historyLogs.unshift({ timestamp: timeString, text: message });
+        if (historyLogs.length > 100) historyLogs.pop();
+        localStorage.setItem('dentalHistoryLogs', JSON.stringify(historyLogs));
+        renderLogs();
+    }
+
+    function renderLogs() {
+        const container = document.getElementById('logContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        if (historyLogs.length === 0) {
+            container.innerHTML = '<div style="color: #64748b; font-style: italic; text-align: center; padding: 10px;">Belum ada riwayat perubahan data.</div>';
+            return;
+        }
+        historyLogs.forEach(log => {
+            container.innerHTML += `
+                <div class="log-item">
+                    <span class="log-timestamp">[${log.timestamp}]</span>
+                    <span class="log-text">${log.text}</span>
+                </div>
+            `;
+        });
+    }
+
+    function clearLogs() {
+        const passwordInput = prompt("Masukkan password keamanan untuk membersihkan seluruh log history:");
+        if (passwordInput === null) return; 
+        if (passwordInput === "000000") {
+            if(confirm("Apakah Anda benar-benar yakin ingin menghapus seluruh log secara permanen?")) {
+                historyLogs = [];
+                localStorage.setItem('dentalHistoryLogs', JSON.stringify(historyLogs));
+                renderLogs();
+                alert("Log riwayat perubahan berhasil dibersihkan.");
+            }
+        } else {
+            alert("Password Salah! Akses untuk menghapus log ditolak.");
+        }
+    }
+
+    function clearDateFilter() {
+        document.getElementById('filterStartDate').value = '';
+        document.getElementById('filterEndDate').value = '';
+        resetToPageOneAndRender();
+    }
+
+    function resetToPageOneAndRender() {
+        currentPage = 1;
+        renderTasks();
+    }
+
+    // --- RENDER MAINTENANCE TASKS ---
+    function renderTasks() {
+        const tableBody = document.getElementById('taskTableBody');
+        if (!tableBody) return;
+        tableBody.innerHTML = '';
+
+        const startDateVal = document.getElementById('filterStartDate').value;
+        const endDateVal = document.getElementById('filterEndDate').value;
+        
+        let startFilter = startDateVal ? new Date(startDateVal).setHours(0,0,0,0) : null;
+        let endFilter = endDateVal ? new Date(endDateVal).setHours(23,59,59,999) : null;
+
+        let filteredTasks = tasks.map((task, originalIndex) => ({ ...task, originalIndex }));
+        
+        if (startFilter || endFilter) {
+            filteredTasks = filteredTasks.filter(task => {
+                const taskTime = new Date(task.tanggal).getTime();
+                if (startFilter && taskTime < startFilter) return false;
+                if (endFilter && taskTime > endFilter) return false;
+                return true;
+            });
+        }
+
+        const statusOrder = { 'Pending': 1, 'On Progress': 2, 'Done': 3 };
+        filteredTasks.sort((a, b) => (statusOrder[a.status] || 1) - (statusOrder[b.status] || 1) || new Date(a.tanggal) - new Date(b.tanggal));
+
+        const totalFiltered = filteredTasks.length;
+
+        if (totalFiltered === 0) {
+            tableBody.innerHTML = `<tr><td colspan="7" class="empty-state">Tidak ada histori tugas ditemukan pada kriteria pencarian ini.</td></tr>`;
+            document.getElementById('paginationInfo').textContent = "Menampilkan 0 dari 0 tugas";
+            document.getElementById('paginationButtons').innerHTML = '';
+            updateDashboard(); 
+            return;
+        }
+
+        const totalPages = Math.ceil(totalFiltered / rowsPerPage);
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const endIndex = Math.min(startIndex + rowsPerPage, totalFiltered);
+        const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
+
+        const today = new Date(); today.setHours(0,0,0,0);
+
+        paginatedTasks.forEach((task) => {
+            let isOverdue = false;
+            if (task.status !== 'Done' && task.dueDate) {
+                const dueDateObj = new Date(task.dueDate); dueDateObj.setHours(0,0,0,0);
+                if (today > dueDateObj) isOverdue = true;
+            }
+
+            let trClass = task.status === 'Done' ? 'tr-done' : (task.status === 'On Progress' ? 'tr-progress' : 'tr-pending');
+            if (isOverdue) trClass = 'tr-overdue';
+
+            const formattedStart = new Date(task.tanggal).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' });
+            const formattedDue = task.dueDate ? new Date(task.dueDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+            let selectColorClass = task.status === 'Done' ? 'select-done' : (task.status === 'On Progress' ? 'select-progress' : 'select-pending');
+
+            const tr = document.createElement('tr');
+            tr.className = trClass;
+            tr.innerHTML = `
+                <td>
+                    <strong>${task.alat}</strong><br>
+                    <span style="color:#64748b; font-size:12px;">${task.tugas}</span>
+                    ${isOverdue ? `<br><span class="badge badge-overdue">LEWAT TENGGAT!</span>` : ''}
+                </td>
+                <td><strong>${task.klinik || 'Umum'}</strong></td>
+                <td>${formattedStart}</td>
+                <td><strong>${formattedDue}</strong></td>
+                <td><span class="badge badge-${task.prioritas}">${task.prioritas === 'high' ? 'Tinggi' : task.prioritas === 'medium' ? 'Sedang' : 'Rendah'}</span></td>
+                <td>
+                    <select class="status-select-inline ${selectColorClass}" onchange="changeTaskStatus(${task.originalIndex}, this.value)">
+                        <option value="Pending" ${task.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                        <option value="On Progress" ${task.status === 'On Progress' ? 'selected' : ''}>On Progress</option>
+                        <option value="Done" ${task.status === 'Done' ? 'selected' : ''}>Done</option>
+                    </select>
+                </td>
+                <td style="text-align:right; white-space:nowrap;">
+                    <button class="btn-action btn-warning" onclick="enterTaskEditMode(${task.originalIndex})">Edit</button>
+                    <button class="btn-action btn-danger" onclick="deleteTask(${task.originalIndex})">Hapus</button>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+        });
+
+        document.getElementById('paginationInfo').textContent = `Menampilkan ${startIndex + 1}-${endIndex} dari ${totalFiltered} tugas`;
+        renderPaginationControls(totalPages);
+        updateDashboard();
+    }
+
+    function renderPaginationControls(totalPages) {
+        const btnWrapper = document.getElementById('paginationButtons');
+        if (!btnWrapper) return;
+        btnWrapper.innerHTML = '';
+        if(totalPages <= 1) return;
+
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'pagination-btn'; prevBtn.textContent = '◀'; prevBtn.disabled = currentPage === 1;
+        prevBtn.onclick = () => { currentPage--; renderTasks(); };
+        btnWrapper.appendChild(prevBtn);
+
+        for (let i = 1; i <= totalPages; i++) {
+            const numBtn = document.createElement('button');
+            numBtn.className = `pagination-btn ${i === currentPage ? 'active' : ''}`; numBtn.textContent = i;
+            numBtn.onclick = () => { currentPage = i; renderTasks(); };
+            btnWrapper.appendChild(numBtn);
+        }
+
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'pagination-btn'; nextBtn.textContent = '▶'; nextBtn.disabled = currentPage === totalPages;
+        nextBtn.onclick = () => { currentPage++; renderTasks(); };
+        btnWrapper.appendChild(nextBtn);
+    }
+
+    function changeTaskStatus(originalIndex, newStatus) {
+        const oldStatus = tasks[originalIndex].status;
+        tasks[originalIndex].status = newStatus;
+        localStorage.setItem('dentalTasks', JSON.stringify(tasks));
+        addLog(`Status tugas untuk alat [${tasks[originalIndex].alat} - ${tasks[originalIndex].tugas}] diubah dari "${oldStatus}" menjadi "${newStatus}".`);
+        renderTasks();
+    }
+
+    function enterTaskEditMode(originalIndex) {
+        const task = tasks[originalIndex];
+        document.getElementById('formTaskTitle').textContent = "Edit Data Tugas";
+        document.getElementById('editTaskIndex').value = originalIndex;
+        document.getElementById('taskKlinik').value = task.klinik;
+        document.getElementById('alat').value = task.alat;
+        document.getElementById('tugas').value = task.tugas;
+        document.getElementById('tanggal').value = task.tanggal;
+        document.getElementById('dueDate').value = task.dueDate || "";
+        document.getElementById('prioritas').value = task.prioritas;
+        
+        document.getElementById('taskEditIndicator').style.display = "block";
+        document.getElementById('btnTaskCancel').style.display = "inline-block";
+        document.getElementById('btnTaskSubmit').textContent = "Perbarui Tugas";
+        document.getElementById('formTaskTitle').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelTaskEditMode() {
+        document.getElementById('maintenanceForm').reset();
+        document.getElementById('formTaskTitle').textContent = "Tambah Tugas Baru";
+        document.getElementById('editTaskIndex').value = "";
+        document.getElementById('taskEditIndicator').style.display = "none";
+        document.getElementById('btnTaskCancel').style.display = "none";
+        document.getElementById('btnTaskSubmit').textContent = "Simpan Tugas";
+        document.getElementById('tanggal').valueAsDate = new Date();
+        document.getElementById('dueDate').valueAsDate = new Date();
+    }
+
+    document.getElementById('maintenanceForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const editIndexStr = document.getElementById('editTaskIndex').value;
+        const currentStatus = editIndexStr !== "" ? tasks[parseInt(editIndexStr)].status : 'Pending';
+
+        const taskData = {
+            klinik: document.getElementById('taskKlinik').value,
+            alat: document.getElementById('alat').value,
+            tugas: document.getElementById('tugas').value,
+            tanggal: document.getElementById('tanggal').value,
+            dueDate: document.getElementById('dueDate').value,
+            prioritas: document.getElementById('prioritas').value,
+            status: currentStatus
+        };
+
+        if (editIndexStr !== "") { 
+            const idx = parseInt(editIndexStr);
+            tasks[idx] = taskData; 
+            addLog(`Tugas terubah: [${taskData.alat}] - "${taskData.tugas}" di ${taskData.klinik}.`);
+        } else { 
+            tasks.push(taskData); 
+            addLog(`Tugas baru ditambahkan: [${taskData.alat}] - "${taskData.tugas}" di ${taskData.klinik} (Status: Pending).`);
+        }
+
+        localStorage.setItem('dentalTasks', JSON.stringify(tasks));
+        cancelTaskEditMode(); renderTasks(); populateDropdowns();
+    });
+
+    function deleteTask(originalIndex) { 
+        if(confirm("Hapus histori tugas ini secara permanen?")) { 
+            const deleted = tasks[originalIndex];
+            tasks.splice(originalIndex, 1); 
+            localStorage.setItem('dentalTasks', JSON.stringify(tasks)); 
+            addLog(`Tugas dihapus permanen: [${deleted.alat}] - "${deleted.tugas}" dari ${deleted.klinik}.`);
+            renderTasks(); 
+        } 
+    }
+
+    // --- MASTER MANAGEMENT ---
+    function manageKlinik(action) {
+        const klinikAktif = document.getElementById('viewKlinik').value;
+        if(action === 'add') {
+            const namaBaru = prompt("Masukkan nama lokasi klinik baru:");
+            if(namaBaru && namaBaru.trim() !== "") {
+                if(kliniks.includes(namaBaru.trim())) { alert("Klinik sudah terdaftar!"); return; }
+                kliniks.push(namaBaru.trim()); populateDropdowns();
+                document.getElementById('viewKlinik').value = namaBaru.trim();
+                renderAssets(); renderTasks(); if(document.getElementById('calibration-tab').classList.contains('active')) renderCalibrations();
+            }
+        } else if(action === 'edit') {
+            if(!klinikAktif) return;
+            const namaDiubah = prompt(`Ubah nama lokasi klinik menjadi:`, klinikAktif);
+            if(namaDiubah && namaDiubah.trim() !== "" && namaDiubah.trim() !== klinikAktif) {
+                if(kliniks.includes(namaDiubah.trim())) { alert("Nama klinik sudah ada!"); return; }
+                const idx = kliniks.indexOf(klinikAktif);
+                if(idx !== -1) {
+                    kliniks[idx] = namaDiubah.trim();
+                    assets.forEach(a => { if(a.klinik === klinikAktif) a.klinik = namaDiubah.trim(); });
+                    tasks.forEach(t => { if(t.klinik === klinikAktif) t.klinik = namaDiubah.trim(); });
+                    calibrations.forEach(c => { if(c.klinik === klinikAktif) c.klinik = namaDiubah.trim(); });
+                    localStorage.setItem('dentalAssets', JSON.stringify(assets));
+                    localStorage.setItem('dentalTasks', JSON.stringify(tasks));
+                    localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
+                    populateDropdowns(); document.getElementById('viewKlinik').value = namaDiubah.trim();
+                    renderAssets(); renderTasks(); if(document.getElementById('calibration-tab').classList.contains('active')) renderCalibrations();
+                }
+            }
+        } else if(action === 'delete') {
+            if(!klinikAktif) return;
+            if(confirm(`Hapus klinik "${klinikAktif}"?`)) {
+                kliniks = kliniks.filter(k => k !== klinikAktif);
+                assets.forEach(a => { if(a.klinik === klinikAktif) a.klinik = kliniks[0] || ""; });
+                tasks.forEach(t => { if(t.klinik === klinikAktif) t.klinik = kliniks[0] || ""; });
+                calibrations.forEach(c => { if(c.klinik === klinikAktif) c.klinik = kliniks[0] || ""; });
+                localStorage.setItem('dentalAssets', JSON.stringify(assets));
+                localStorage.setItem('dentalTasks', JSON.stringify(tasks));
+                localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
+                populateDropdowns(); renderAssets(); renderTasks(); if(document.getElementById('calibration-tab').classList.contains('active')) renderCalibrations();
+            }
+        }
+    }
+
+    function manageMasterAlat() {
+        if (masterAlat.length === 0) {
+            const baru = prompt("Master alat kosong. Masukkan nama alat baru:");
+            if (baru && baru.trim() !== "") {
+                masterAlat.push(baru.trim());
+                populateDropdowns();
+                alert("Alat berhasil ditambahkan!");
+            }
+            return;
+        }
+
+        let listAlatText = "";
+        masterAlat.forEach((alat, index) => {
+            listAlatText += `${index + 1}. ${alat}\n`;
+        });
+
+        const opsi = prompt(`KELOLA MASTER NAMA ALAT:\n1. Tambah Alat Baru\n2. Ubah (Edit) Nama Alat\n3. Hapus Nama Alat\n\nMasukkan angka menu (1-3):`);
+        
+        if (opsi === "1") {
+            const baru = prompt("Masukkan nama alat baru yang ingin ditambahkan:");
+            if (baru && baru.trim() !== "") {
+                if (masterAlat.map(a => a.toLowerCase()).includes(baru.trim().toLowerCase())) {
+                    alert("Nama alat tersebut sudah terdaftar!");
+                    return;
+                }
+                masterAlat.push(baru.trim());
+                populateDropdowns();
+                addLog(`Master Alat Ditambahkan: "${baru.trim()}"`);
+                alert("Alat baru berhasil ditambahkan!");
+            }
+        } 
+        else if (opsi === "2") {
+            const nomorAlat = prompt(`PILIH NOMOR ALAT YANG INGIN DIUBAH:\n\n${listAlatText}\nMasukkan nomor alat:`);
+            const idx = parseInt(nomorAlat) - 1;
+            
+            if (isNaN(idx) || idx < 0 || idx >= masterAlat.length) {
+                alert("Nomor alat tidak valid!");
+                return;
+            }
+            
+            const namaLama = masterAlat[idx];
+            const namaBaru = prompt(`Ubah nama alat "${namaLama}" menjadi:`, namaLama);
+            
+            if (namaBaru && namaBaru.trim() !== "" && namaBaru.trim() !== namaLama) {
+                if (masterAlat.map(a => a.toLowerCase()).includes(namaBaru.trim().toLowerCase()) && namaBaru.trim().toLowerCase() !== namaLama.toLowerCase()) {
+                    alert("Nama alat baru sudah ada di daftar!");
+                    return;
+                }
+                
+                const konfirmasi = confirm(`Apakah Anda yakin ingin mengubah "${namaLama}" menjadi "${namaBaru.trim()}" di seluruh sistem?`);
+                if (konfirmasi) {
+                    masterAlat[idx] = namaBaru.trim();
+                    assets.forEach(asset => { if (asset.name === namaLama) asset.name = namaBaru.trim(); });
+                    tasks.forEach(task => { if (task.alat === namaLama) task.alat = namaBaru.trim(); });
+                    calibrations.forEach(cal => { if (cal.assetName === namaLama) cal.assetName = namaBaru.trim(); });
+
+                    localStorage.setItem('dentalAssets', JSON.stringify(assets));
+                    localStorage.setItem('dentalTasks', JSON.stringify(tasks));
+                    localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
+                    
+                    populateDropdowns(); renderAssets(); renderTasks();
+                    if(document.getElementById('calibration-tab').classList.contains('active')) renderCalibrations();
+                    
+                    addLog(`Master Alat Diubah: "${namaLama}" diganti menjadi "${namaBaru.trim()}"`);
+                    alert("Nama alat berhasil diperbarui!");
+                }
+            }
+        } 
+        else if (opsi === "3") {
+            const nomorAlat = prompt(`PILIH NOMOR ALAT YANG INGIN DIHAPUS:\n\n${listAlatText}\nMasukkan nomor alat:`);
+            const idx = parseInt(nomorAlat) - 1;
+            
+            if (isNaN(idx) || idx < 0 || idx >= masterAlat.length) {
+                alert("Nomor alat tidak valid!");
+                return;
+            }
+            
+            const namaHapus = masterAlat[idx];
+            const konfirmasi = confirm(`Hapus "${namaHapus}" dari daftar pilihan master?\n(Catatan: Data asset yang sudah memakai nama ini tidak akan terhapus, hanya hilang dari pilihan datalist cepat)`);
+            
+            if (konfirmasi) {
+                masterAlat.splice(idx, 1);
+                populateDropdowns();
+                addLog(`Master Alat Dihapus: "${namaHapus}"`);
+                alert("Nama alat berhasil dihapus dari daftar rekomendasi!");
+            }
+        }
+    }
+
+    /* --- PERBAIKAN FITUR: MANAJEMEN MASTER MERK ALAT (TAMBAH, EDIT, HAPUS) --- */
+    function manageMasterBrand() {
+        if (masterBrand.length === 0) {
+            const baru = prompt("Master merk kosong. Masukkan nama merk baru:");
+            if (baru && baru.trim() !== "") {
+                masterBrand.push(baru.trim());
+                populateDropdowns();
+                alert("Merk berhasil ditambahkan!");
+            }
+            return;
+        }
+
+        // Membuat daftar teks list master merk yang tersedia saat ini
+        let listBrandText = "";
+        masterBrand.forEach((brand, index) => {
+            listBrandText += `${index + 1}. ${brand}\n`;
+        });
+
+        const opsi = prompt(`KELOLA MASTER MERK ALAT:\n1. Tambah Merk Baru\n2. Ubah (Edit) Nama Merk\n3. Hapus Nama Merk\n\nMasukkan angka menu (1-3):`);
+        
+        if (opsi === "1") {
+            const baru = prompt("Masukkan nama merk baru yang ingin ditambahkan:");
+            if (baru && baru.trim() !== "") {
+                if (masterBrand.map(b => b.toLowerCase()).includes(baru.trim().toLowerCase())) {
+                    alert("Nama merk tersebut sudah terdaftar!");
+                    return;
+                }
+                masterBrand.push(baru.trim());
+                populateDropdowns();
+                addLog(`Master Merk Ditambahkan: "${baru.trim()}"`);
+                alert("Merk baru berhasil ditambahkan!");
+            }
+        } 
+        else if (opsi === "2") {
+            const nomorBrand = prompt(`PILIH NOMOR MERK YANG INGIN DIUBAH:\n\n${listBrandText}\nMasukkan nomor merk:`);
+            const idx = parseInt(nomorBrand) - 1;
+            
+            if (isNaN(idx) || idx < 0 || idx >= masterBrand.length) {
+                alert("Nomor merk tidak valid!");
+                return;
+            }
+            
+            const namaLama = masterBrand[idx];
+            const namaBaru = prompt(`Ubah nama merk "${namaLama}" menjadi:`, namaLama);
+            
+            if (namaBaru && namaBaru.trim() !== "" && namaBaru.trim() !== namaLama) {
+                if (masterBrand.map(b => b.toLowerCase()).includes(namaBaru.trim().toLowerCase()) && namaBaru.trim().toLowerCase() !== namaLama.toLowerCase()) {
+                    alert("Nama merk baru sudah ada di daftar!");
+                    return;
+                }
+                
+                const konfirmasi = confirm(`Apakah Anda yakin ingin mengubah merk "${namaLama}" menjadi "${namaBaru.trim()}" di seluruh data asset?`);
+                if (konfirmasi) {
+                    masterBrand[idx] = namaBaru.trim();
+                    
+                    // Otomatis update data relasional pada merk asset yang sudah tersimpan
+                    assets.forEach(asset => {
+                        if (asset.brand === namaLama) asset.brand = namaBaru.trim();
+                    });
+
+                    localStorage.setItem('dentalAssets', JSON.stringify(assets));
+                    
+                    populateDropdowns();
+                    renderAssets();
+                    
+                    addLog(`Master Merk Diubah: "${namaLama}" diganti menjadi "${namaBaru.trim()}"`);
+                    alert("Nama merk berhasil diperbarui!");
+                }
+            }
+        } 
+        else if (opsi === "3") {
+            const nomorBrand = prompt(`PILIH NOMOR MERK YANG INGIN DIHAPUS:\n\n${listBrandText}\nMasukkan nomor merk:`);
+            const idx = parseInt(nomorBrand) - 1;
+            
+            if (isNaN(idx) || idx < 0 || idx >= masterBrand.length) {
+                alert("Nomor merk tidak valid!");
+                return;
+            }
+            
+            const namaHapus = masterBrand[idx];
+            const konfirmasi = confirm(`Hapus merk "${namaHapus}" dari daftar pilihan master?\n(Catatan: Data asset yang sudah memakai merk ini tidak akan terhapus, hanya hilang dari pilihan datalist cepat)`);
+            
+            if (konfirmasi) {
+                masterBrand.splice(idx, 1);
+                populateDropdowns();
+                addLog(`Master Merk Dihapus: "${namaHapus}"`);
+                alert("Nama merk berhasil dihapus dari daftar rekomendasi!");
+            }
+        }
+    }
+
+    function toggleTaskForm() {
+        const layoutGrid = document.getElementById('maintenanceLayoutGrid');
+        const arrowBtn = layoutGrid.querySelector('.toggle-arrow-btn');
+        layoutGrid.classList.toggle('form-minimized');
+        arrowBtn.textContent = layoutGrid.classList.contains('form-minimized') ? '▶' : '◀';
+    }
+
+    // --- DASHBOARD CHARTS ---
+    function updateDashboard() {
+        const total = tasks.length;
+        const completed = tasks.filter(t => t.status === 'Done').length;
+        const progress = tasks.filter(t => t.status === 'On Progress').length;
+        const pending = tasks.filter(t => t.status === 'Pending').length;
+
+        const elTotal = document.getElementById('countTotal');
+        if(elTotal) elTotal.textContent = total;
+        if(document.getElementById('countProgress')) document.getElementById('countProgress').textContent = progress;
+        if(document.getElementById('countPending')) document.getElementById('countPending').textContent = pending;
+        if(document.getElementById('countCompleted')) document.getElementById('countCompleted').textContent = completed;
+
+        const today = new Date(); today.setHours(0,0,0,0);
+        let overdueCount = 0;
+        tasks.forEach(t => {
+            if (t.status !== 'Done' && t.dueDate) {
+                const due = new Date(t.dueDate); due.setHours(0,0,0,0);
+                if (today > due) overdueCount++;
+            }
+        });
+
+        const overdueEl = document.getElementById('overdueSubtext');
+        if (overdueEl) {
+            if (overdueCount > 0) {
+                overdueEl.textContent = `(${overdueCount} Lewat Tenggat)`;
+                overdueEl.style.display = 'block';
+            } else {
+                overdueEl.style.display = 'none';
+            }
+        }
+
+        const lowPriority = tasks.filter(t => t.prioritas === 'low').length;
+        const medPriority = tasks.filter(t => t.prioritas === 'medium').length;
+        const highPriority = tasks.filter(t => t.prioritas === 'high').length;
+
+        const safeChartLayout = { padding: { left: 5, right: 15, top: 5, bottom: 5 } };
+
+        const elStatusChart = document.getElementById('statusChart');
+        if (elStatusChart) {
+            const ctxStatus = elStatusChart.getContext('2d');
+            if (statusChartInstance) {
+                statusChartInstance.data.datasets[0].data = [completed, pending, progress];
+                statusChartInstance.update();
+            } else {
+                statusChartInstance = new Chart(ctxStatus, {
+                    type: 'doughnut',
+                    data: { labels: ['Done', 'Pending', 'On Progress'], datasets: [{ data: [completed, pending, progress], backgroundColor: ['#10b981', '#ef4444', '#f59e0b'], borderWidth: 2 }] },
+                    options: { responsive: true, maintainAspectRatio: false, layout: safeChartLayout, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
+                });
+            }
+        }
+
+        const dynamicKlinikColors = kliniks.map((_, index) => {
+            const hue = (index * (360 / Math.max(kliniks.length, 1))) % 360;
+            return `hsl(${hue}, 70%, 55%)`; 
+        });
+
+        const elKlinikChart = document.getElementById('klinikChart');
+        if (elKlinikChart) {
+            const ctxKlinik = elKlinikChart.getContext('2d');
+            const klinikDataValues = kliniks.map(k => tasks.filter(t => t.klinik === k).length);
+            if (klinikChartInstance) {
+                klinikChartInstance.data.labels = kliniks; 
+                klinikChartInstance.data.datasets[0].data = klinikDataValues; 
+                klinikChartInstance.data.datasets[0].backgroundColor = dynamicKlinikColors; 
+                klinikChartInstance.update();
+            } else {
+                klinikChartInstance = new Chart(ctxKlinik, {
+                    type: 'pie',
+                    data: { labels: kliniks, datasets: [{ data: klinikDataValues, backgroundColor: dynamicKlinikColors, borderWidth: 2 }] },
+                    options: { responsive: true, maintainAspectRatio: false, layout: safeChartLayout, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
+                });
+            }
+        }
+
+        const elAlatCategoryChart = document.getElementById('alatCategoryChart');
+        if (elAlatCategoryChart) {
+            const ctxAlatCategory = elAlatCategoryChart.getContext('2d');
+            const alatDataValues = masterAlat.map(alat => tasks.filter(t => t.alat === alat).length);
+            if (alatCategoryChartInstance) {
+                alatCategoryChartInstance.data.labels = masterAlat; 
+                alatCategoryChartInstance.data.datasets[0].data = alatDataValues; 
+                alatCategoryChartInstance.update();
+            } else {
+                alatCategoryChartInstance = new Chart(ctxAlatCategory, {
+                    type: 'bar',
+                    data: { labels: masterAlat, datasets: [{ label: 'Jumlah Tugas', data: alatDataValues, backgroundColor: '#a855f7', borderColor: '#7e22ce', borderWidth: 1 }] },
+                    options: { responsive: true, maintainAspectRatio: false, layout: safeChartLayout, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } }
+                });
+            }
+        }
+
+        const elPriorityChart = document.getElementById('priorityChart');
+        if (elPriorityChart) {
+            const ctxPriority = elPriorityChart.getContext('2d');
+            if (priorityChartInstance) {
+                priorityChartInstance.data.datasets[0].data = [lowPriority, medPriority, highPriority]; 
+                priorityChartInstance.update();
+            } else {
+                priorityChartInstance = new Chart(ctxPriority, {
+                    type: 'bar',
+                    data: { labels: ['Rendah', 'Sedang', 'Tinggi'], datasets: [{ label: 'Tugas', data: [lowPriority, medPriority, highPriority], backgroundColor: ['#dcfce7', '#fef3c7', '#fee2e2'], borderColor: ['#166534', '#92400e', '#991b1b'], borderWidth: 1 }] },
+                    options: { responsive: true, maintainAspectRatio: false, layout: safeChartLayout, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } }
+                });
+            }
+        }
+    }
+
+    // --- ASSET MANAGEMENT ---
+    const assetForm = document.getElementById('assetForm');
+    const assetGrid = document.getElementById('assetGrid');
+
+    function updateAssetChart(filteredAssets, namaKlinik) {
+        const elAssetChart = document.getElementById('assetCountChart');
+        if (!elAssetChart) return;
+        const ctxAsset = elAssetChart.getContext('2d');
+        document.getElementById('assetChartTitle').textContent = `Grafik Kuantitas Asset Terbanyak - di ${namaKlinik}`;
+        if (filteredAssets.length === 0) { if (assetChartInstance) { assetChartInstance.destroy(); assetChartInstance = null; } return; }
+
+        const counts = {};
+        filteredAssets.forEach(asset => {
+            let category = asset.name.trim().split(" ")[0];
+            category = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+            counts[category] = (counts[category] || 0) + 1;
+        });
+        const sortedCategories = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+        const dataValues = sortedCategories.map(cat => counts[cat]);
+
+        if (assetChartInstance) {
+            assetChartInstance.data.labels = sortedCategories; assetChartInstance.data.datasets[0].data = dataValues; assetChartInstance.update();
+        } else {
+            assetChartInstance = new Chart(ctxAsset, {
+                type: 'bar',
+                data: { labels: sortedCategories, datasets: [{ label: 'Kuantitas Unit', data: dataValues, backgroundColor: 'rgba(14, 165, 233, 0.7)', borderColor: 'rgba(2, 132, 199, 1)', borderWidth: 1 }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { left: 5, right: 25, top: 5, bottom: 5 } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } }
+            });
+        }
+    }
+
+    function renderAssets() {
+        const klinikTerpilih = document.getElementById('viewKlinik').value;
+        if (!assetGrid) return;
+        assetGrid.innerHTML = '';
+        if(!klinikTerpilih) { assetGrid.innerHTML = `<div class="empty-state">Silakan buat lokasi klinik.</div>`; return; }
+
+        document.getElementById('assetListTitle').textContent = `Daftar Inventaris - ${klinikTerpilih}`;
+        const filteredAssets = assets.filter(asset => asset.klinik === klinikTerpilih);
+        updateAssetChart(filteredAssets, klinikTerpilih);
+
+        if(filteredAssets.length === 0) { assetGrid.innerHTML = `<div class="empty-state">Belum ada data asset klinik.</div>`; return; }
+
+        filteredAssets.forEach((asset) => {
+            const originalIndex = assets.findIndex(a => a === asset);
+            const card = document.createElement('div');
+            card.className = 'asset-card';
+            const imgHTML = asset.image ? `<img src="${asset.image}" alt="${asset.name}">` : `<span class="asset-no-img">Tidak ada foto</span>`;
+            
+            const calBadgeHTML = asset.needCalibration ? `<br><span class="badge badge-need-cal">⚙️ Butuh Kalibrasi</span>` : '';
+
+            card.innerHTML = `
+                <div class="asset-img-holder">${imgHTML}</div>
+                <div class="asset-info">
+                    <div>
+                        <div class="asset-name">${asset.name} ${calBadgeHTML}</div>
+                        <div class="asset-brand">🏷️ Merk: ${asset.brand || '-'}</div>
+                        <div class="asset-room">📍 Ruangan: ${asset.room || 'Umum / Tidak Set'}</div>
+                        <div class="asset-desc">${asset.desc.replace(/\n/g, '<br>')}</div>
+                    </div>
+                    <div class="asset-card-actions" style="margin-top:10px;">
+                        <button class="btn-action btn-warning" onclick="enterEditMode(${originalIndex})">Edit</button>
+                        <button class="btn-action btn-danger" onclick="deleteAsset(${originalIndex})">Hapus</button>
+                    </div>
+                </div>
+            `;
+            assetGrid.appendChild(card);
+        });
+    }
+
+    function toggleAssetForm() {
+        const layoutGrid = document.getElementById('assetLayoutGrid');
+        const arrowBtn = layoutGrid.querySelector('.toggle-arrow-btn');
+        layoutGrid.classList.toggle('form-minimized');
+        arrowBtn.textContent = layoutGrid.classList.contains('form-minimized') ? '▶' : '◀';
+        setTimeout(() => { renderAssets(); }, 310);
+    }
+
+    function switchTab(tabId, button) {
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active'); 
+        
+        button.classList.add('active');
+        if (tabId === 'calibration-tab') {
+            button.classList.add('btn-cal-tab');
+        }
+
+        if(tabId === 'maintenance-tab') { 
+            renderTasks(); 
+            renderLogs(); 
+        } else if(tabId === 'asset-tab') { 
+            renderAssets(); 
+        } else if(tabId === 'calibration-tab') {
+            runAutoCalibrationScheduler(); 
+            populateDropdowns(); 
+            renderCalibrations();
+        }
+    }
+
+    function enterEditMode(index) {
+        const asset = assets[index];
+        document.getElementById('formAssetTitle').textContent = "Edit Data Asset";
+        document.getElementById('editAssetIndex').value = index;
+        document.getElementById('assetKlinik').value = asset.klinik;
+        document.getElementById('assetName').value = asset.name;
+        document.getElementById('assetBrand').value = asset.brand || "";
+        document.getElementById('assetRoom').value = asset.room || "";
+        document.getElementById('assetDesc').value = asset.desc;
+        
+        document.getElementById('assetNeedCalibration').checked = asset.needCalibration || false;
+
+        document.getElementById('editIndicator').style.display = "block";
+        document.getElementById('btnAssetCancel').style.display = "inline-block";
+        document.getElementById('imgHelpText').style.display = "block";
+        document.getElementById('btnAssetSubmit').textContent = "Perbarui Data";
+        document.getElementById('inputCardWrapper').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelEditMode() {
+        assetForm.reset(); document.getElementById('formAssetTitle').textContent = "Input Asset Baru";
+        document.getElementById('editAssetIndex').value = ""; document.getElementById('editIndicator').style.display = "none";
+        document.getElementById('btnAssetCancel').style.display = "none"; document.getElementById('imgHelpText').style.display = "none";
+        document.getElementById('btnAssetSubmit').textContent = "Simpan Asset";
+        document.getElementById('assetNeedCalibration').checked = false;
+    }
+
+    if (assetForm) {
+        assetForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const editIndexStr = document.getElementById('editAssetIndex').value;
+            const klinikInput = document.getElementById('assetKlinik').value;
+            const brandInput = document.getElementById('assetBrand').value;
+            const nameInput = document.getElementById('assetName').value;
+            const roomInput = document.getElementById('assetRoom').value;
+            const descInput = document.getElementById('assetDesc').value;
+            const needCalInput = document.getElementById('assetNeedCalibration').checked;
+            const imgFile = document.getElementById('assetImg').files[0];
+
+            if(nameInput && !masterAlat.includes(nameInput.trim())) masterAlat.push(nameInput.trim());
+            if(brandInput && !masterBrand.includes(brandInput.trim())) masterBrand.push(brandInput.trim());
+            if(roomInput && !masterRooms.includes(roomInput.trim())) masterRooms.push(roomInput.trim());
+
+            const save = (imgResult) => {
+                const assetData = { 
+                    klinik: klinikInput, 
+                    name: nameInput, 
+                    brand: brandInput, 
+                    room: roomInput,
+                    desc: descInput, 
+                    needCalibration: needCalInput,
+                    image: imgResult || (editIndexStr !== "" ? assets[parseInt(editIndexStr)].image : null)
+                };
+
+                if (editIndexStr !== "") {
+                    const index = parseInt(editIndexStr);
+                    assets[index] = assetData;
+                    addLog(`Asset diubah: [${nameInput}] Ruangan [${roomInput}] di ${klinikInput}`);
+                } else {
+                    assets.push(assetData);
+                    addLog(`Asset baru ditambahkan: [${nameInput}] Ruangan [${roomInput}] di ${klinikInput}`);
+                }
+                localStorage.setItem('dentalAssets', JSON.stringify(assets));
+                document.getElementById('viewKlinik').value = klinikInput;
+                cancelEditMode(); renderAssets(); populateDropdowns();
+            };
+
+            if (imgFile) { const r = new FileReader(); r.onloadend = function() { save(r.result); }; r.readAsDataURL(imgFile); } else { save(null); }
+        });
+    }
+
+    function deleteAsset(index) { 
+        if(confirm("Hapus asset ini?")) { 
+            const deleted = assets[index];
+            assets.splice(index, 1); 
+            localStorage.setItem('dentalAssets', JSON.stringify(assets)); 
+            addLog(`Asset deleted permanen: [${deleted.name}] dari ${deleted.klinik}`);
+            renderAssets(); 
+            populateDropdowns();
+        } 
+    }
+
+    // --- CALIBRATION FUNCTIONS ---
+    function toggleCalibrationForm() {
+        const layoutGrid = document.getElementById('calibrationLayoutGrid');
+        const arrowBtn = layoutGrid.querySelector('.toggle-arrow-btn.btn-cal');
+        layoutGrid.classList.toggle('form-minimized');
+        arrowBtn.textContent = layoutGrid.classList.contains('form-minimized') ? '▶' : '◀';
+    }
+
+    function updateCalibrationDashboard(filteredCalibrations) {
+        const today = new Date(); today.setHours(0,0,0,0);
+        
+        let countExpired = 0;
+        let countWarning = 0; 
+        let countSafe = 0;
+
+        const klinikUrgentCounts = {};
+        kliniks.forEach(k => { klinikUrgentCounts[k] = 0; });
+
+        calibrations.forEach(cal => {
+            const isFilterMatch = document.getElementById('viewKlinikCal').value === 'SEMUA' || cal.klinik === document.getElementById('viewKlinikCal').value;
+
+            if (cal.status === 'Dijadwalkan' && cal.nextDate) {
+                const nextDateObj = new Date(cal.nextDate); nextDateObj.setHours(0,0,0,0);
+                const diffTime = nextDateObj - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays < 0) {
+                    if (isFilterMatch) countExpired++;
+                    klinikUrgentCounts[cal.klinik] = (klinikUrgentCounts[cal.klinik] || 0) + 1;
+                } else if (diffDays <= 90) {
+                    if (isFilterMatch) countWarning++;
+                    klinikUrgentCounts[cal.klinik] = (klinikUrgentCounts[cal.klinik] || 0) + 1;
+                } else {
+                    if (isFilterMatch) countSafe++;
+                }
+            } else {
+                if (isFilterMatch) countSafe++;
+            }
+        });
+
+        const elCalReminder = document.getElementById('calReminderChart');
+        if (elCalReminder) {
+            const ctxCalReminder = elCalReminder.getContext('2d');
+            if (calReminderChartInstance) {
+                calReminderChartInstance.data.datasets[0].data = [countExpired, countWarning, countSafe];
+                calReminderChartInstance.update();
+            } else {
+                calReminderChartInstance = new Chart(ctxCalReminder, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Expired (Lewat Tempo)', 'Warning (H-3 Bulan)', 'Aman (> 3 Bulan)'],
+                        datasets: [{
+                            data: [countExpired, countWarning, countSafe],
+                            backgroundColor: ['#ef4444', '#f59e0b', '#10b981'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }
+                    }
+                });
+            }
+        }
+
+        const sortedKliniks = Object.keys(klinikUrgentCounts).sort((a,b) => klinikUrgentCounts[b] - klinikUrgentCounts[a]).slice(0, 5);
+        const urgentDataValues = sortedKliniks.map(k => klinikUrgentCounts[k]);
+
+        const elCalKlinikUrgent = document.getElementById('calKlinikUrgentChart');
+        if (elCalKlinikUrgent) {
+            const ctxCalKlinikUrgent = elCalKlinikUrgent.getContext('2d');
+            if (calKlinikUrgentChartInstance) {
+                calKlinikUrgentChartInstance.data.labels = sortedKliniks;
+                calKlinikUrgentChartInstance.data.datasets[0].data = urgentDataValues;
+                calKlinikUrgentChartInstance.update();
+            } else {
+                calKlinikUrgentChartInstance = new Chart(ctxCalKlinikUrgent, {
+                    type: 'bar',
+                    data: {
+                        labels: sortedKliniks,
+                        datasets: [{
+                            label: 'Unit Alat Mendesak',
+                            data: urgentDataValues,
+                            backgroundColor: '#8b5cf6',
+                            borderColor: '#6d28d9',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+        }
+    }
+
+    function renderCalibrations() {
+        const tableBody = document.getElementById('calibrationTableBody');
+        if (!tableBody) return;
+        tableBody.innerHTML = '';
+
+        const filterKlinikCal = document.getElementById('viewKlinikCal').value;
+        document.getElementById('calibrationListTitle').textContent = `Agenda Kontrol Kalibrasi Berkala - Lokasi: ${filterKlinikCal === 'SEMUA' ? 'Semua Klinik' : filterKlinikCal}`;
+
+        let filteredCalibrations = calibrations;
+        if (filterKlinikCal !== "SEMUA") {
+            filteredCalibrations = calibrations.filter(cal => cal.klinik === filterKlinikCal);
+        }
+
+        updateCalibrationDashboard(filteredCalibrations);
+
+        if (filteredCalibrations.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="7" class="empty-state">Belum ada agenda jadwal kalibrasi khusus pada filter yang dipilih.</td></tr>`;
+            return;
+        }
+
+        const today = new Date(); today.setHours(0,0,0,0);
+
+        filteredCalibrations.forEach((cal) => {
+            const originalIndex = calibrations.findIndex(c => c === cal);
+
+            let isOverdue = false;
+            let isWarningPeriod = false; 
+
+            if (cal.nextDate) {
+                const nextDateObj = new Date(cal.nextDate); nextDateObj.setHours(0,0,0,0);
+                const diffTime = nextDateObj - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays < 0) {
+                    isOverdue = true;
+                } else if (diffDays <= 90) {
+                    isWarningPeriod = true; 
+                }
+            }
+
+            let trClass = cal.status === 'Selesai' ? 'tr-done' : 'tr-pending';
+            if (cal.status === 'Dijadwalkan' && isOverdue) trClass = 'tr-overdue';
+            if (cal.status === 'Dijadwalkan' && isWarningPeriod) trClass = 'tr-warning-period';
+
+            const formattedLast = new Date(cal.lastDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' });
+            const formattedNext = new Date(cal.nextDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' });
+
+            let fileHTML = `<span style="color:#94a3b8; font-style:italic; font-size:11px;">Tidak ada berkas</span>`;
+            if (cal.attachedFile) {
+                fileHTML = `<a href="${cal.attachedFile}" target="_blank" class="btn-view-file">📄 Lihat Berkas</a>`;
+            }
+
+            let badgeHTML = `<span class="badge ${cal.status === 'Selesai' ? 'badge-low' : 'badge-high'}">${cal.status}</span>`;
+            if (cal.status === 'Dijadwalkan' && isOverdue) {
+                badgeHTML += `<br><span class="badge badge-overdue" style="margin-top:4px;">EXPIRED</span>`;
+            } else if (cal.status === 'Dijadwalkan' && isWarningPeriod) {
+                badgeHTML += `<br><span class="badge badge-warning-period" style="margin-top:4px;">REMINDER: H-3 BULAN</span>`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.className = trClass;
+            tr.innerHTML = `
+                <td><strong>${cal.klinik || '-'}</strong></td>
+                <td>
+                    <strong>${cal.assetName}</strong><br>
+                    <span style="color:#64748b; font-size:12px;">Notes: ${cal.notes || '-'}</span>
+                </td>
+                <td><strong>${cal.vendor}</strong></td>
+                <td>${formattedLast}</td>
+                <td><strong>${formattedNext}</strong></td>
+                <td>
+                    ${badgeHTML}<br>
+                    ${fileHTML}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">
+                    <button class="btn-action btn-warning" onclick="enterCalibrationEditMode(${originalIndex})">Edit</button>
+                    <button class="btn-action btn-danger" onclick="deleteCalibration(${originalIndex})">Hapus</button>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+        });
+    }
+
+    document.getElementById('calibrationForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const editIdxStr = document.getElementById('editCalibrationIndex').value;
+        const fileInput = document.getElementById('calFile').files[0];
+        const assetNameVal = document.getElementById('calAsset').value;
+
+        if(assetNameVal && !masterAlat.includes(assetNameVal.trim())) {
+            masterAlat.push(assetNameVal.trim());
+        }
+
+        const executeSave = (fileDataUrl) => {
+            const calibrationData = {
+                klinik: document.getElementById('calKlinik').value,
+                assetName: assetNameVal,
+                vendor: document.getElementById('calVendor').value,
+                lastDate: document.getElementById('calLastDate').value,
+                nextDate: document.getElementById('calNextDate').value,
+                status: document.getElementById('calStatus').value,
+                notes: document.getElementById('calNotes').value,
+                attachedFile: fileDataUrl || (editIdxStr !== "" ? calibrations[parseInt(editIdxStr)].attachedFile : null)
+            };
+
+            if (editIdxStr !== "") {
+                const idx = parseInt(editIdxStr);
+                calibrations[idx] = calibrationData;
+                addLog(`Jadwal Kalibrasi diperbarui: [${calibrationData.assetName}] di ${calibrationData.klinik} (${calibrationData.status})`);
+            } else {
+                calibrations.push(calibrationData);
+                addLog(`Agenda Kalibrasi Baru ditambahkan: [${calibrationData.assetName}] di ${calibrationData.klinik}`);
+            }
+
+            localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
+            cancelCalibrationEditMode();
+            runAutoCalibrationScheduler();
+            renderCalibrations();
+            populateDropdowns();
+        };
+
+        if (fileInput) {
+            const reader = new FileReader();
+            reader.onloadend = function() { executeSave(reader.result); };
+            reader.readAsDataURL(fileInput);
+        } else {
+            executeSave(null);
+        }
+    });
+
+    function enterCalibrationEditMode(originalIndex) {
+        const cal = calibrations[originalIndex];
+        document.getElementById('formCalibrationTitle').textContent = "Edit Agenda Kalibrasi";
+        document.getElementById('editCalibrationIndex').value = originalIndex;
+        document.getElementById('calKlinik').value = cal.klinik || "";
+        document.getElementById('calAsset').value = cal.assetName;
+        document.getElementById('calVendor').value = cal.vendor;
+        document.getElementById('calLastDate').value = cal.lastDate;
+        document.getElementById('calNextDate').value = cal.nextDate;
+        document.getElementById('calStatus').value = cal.status;
+        document.getElementById('calNotes').value = cal.notes;
+
+        document.getElementById('calibrationEditIndicator').style.display = "block";
+        document.getElementById('btnCalCancel').style.display = "inline-block";
+        document.getElementById('calFileHelpText').style.display = "block";
+        document.getElementById('btnCalSubmit').textContent = "Perbarui Agenda";
+        document.getElementById('formCalibrationTitle').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelCalibrationEditMode() {
+        document.getElementById('calibrationForm').reset();
+        document.getElementById('formCalibrationTitle').textContent = "Penjadwalan Kalibrasi";
+        document.getElementById('editCalibrationIndex').value = "";
+        document.getElementById('calibrationEditIndicator').style.display = "none";
+        document.getElementById('btnCalCancel').style.display = "none";
+        document.getElementById('calFileHelpText').style.display = "none";
+        document.getElementById('btnCalSubmit').textContent = "Simpan Jadwal";
+        document.getElementById('calLastDate').valueAsDate = new Date();
+        document.getElementById('calNextDate').valueAsDate = new Date();
+    }
+
+    function deleteCalibration(originalIndex) {
+        if (confirm("Apakah Anda yakin ingin menghapus agenda jadwal kalibrasi ini secara permanen?")) {
+            const deleted = calibrations[originalIndex];
+            calibrations.splice(originalIndex, 1);
+            localStorage.setItem('dentalCalibrations', JSON.stringify(calibrations));
+            addLog(`Jadwal Kalibrasi dihapus: [${deleted.assetName}] dari ${deleted.klinik}`);
+            renderCalibrations();
+        }
+    }
+
+    // --- INITIALIZATION ---
+    window.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('tanggal').valueAsDate = new Date();
+        document.getElementById('dueDate').valueAsDate = new Date();
+        
+        if(document.getElementById('calLastDate')) document.getElementById('calLastDate').valueAsDate = new Date();
+        if(document.getElementById('calNextDate')) document.getElementById('calNextDate').valueAsDate = new Date();
+
+        runAutoCalibrationScheduler();
+        populateDropdowns(); 
+        renderTasks(); 
+        renderAssets(); 
+        renderLogs();
+    });
+</script>
+</body>
+</html>
+    
